@@ -9,9 +9,11 @@ import {
   getInterviewSession,
   assignInterviewer,
   getAssignableInterviewers,
+  getScoreTemplates,
   type InterviewSession,
   type CreateInterviewSessionData,
   type AssignableInterviewer,
+  type ScoreTemplate,
 } from '@/api/modules/interview'
 import { getRecruitmentSessions } from '@/api/modules/recruitment'
 import { Button } from '@/components/ui/button'
@@ -80,13 +82,11 @@ const selectedInterviewerIds = ref<number[]>([])
 const interviewersLoading = ref(false)
 
 // 评分模板
+const templates = ref<ScoreTemplate[]>([])
+const templatesLoading = ref(false)
 const useCustomTemplate = ref(false)
 const selectedTemplateId = ref<number | null>(null)
-const customScoreItems = ref<Array<{ title: string; description: string; max_score: number; weight: number }>>([
-  { title: '专业能力', description: '考察专业知识和技能', max_score: 100, weight: 1 },
-  { title: '沟通能力', description: '考察表达和沟通能力', max_score: 100, weight: 1 },
-  { title: '团队协作', description: '考察团队合作意识', max_score: 100, weight: 1 },
-])
+const customScoreItems = ref<Array<{ title: string; description: string; max_score: number; weight: number }>>([])
 
 // 新增评分项
 const newScoreItem = ref({ title: '', description: '', max_score: 100, weight: 1 })
@@ -139,6 +139,28 @@ const fetchSessionDetail = async () => {
     error.value = err.message || '获取场次详情失败'
   } finally {
     loading.value = false
+  }
+}
+
+// 获取评分模板
+const fetchScoreTemplates = async () => {
+  const clubId = getClubId()
+  if (!clubId) return
+
+  try {
+    templatesLoading.value = true
+    const res = await getScoreTemplates({ club_id: clubId })
+    templates.value = res
+  } catch (err: any) {
+    console.error('获取评分模板失败:', err)
+    // 如果 API 调用失败，使用默认模板
+    customScoreItems.value = [
+      { title: '专业能力', description: '考察专业知识和技能', max_score: 100, weight: 1 },
+      { title: '沟通能力', description: '考察表达和沟通能力', max_score: 100, weight: 1 },
+      { title: '团队协作', description: '考察团队合作意识', max_score: 100, weight: 1 },
+    ]
+  } finally {
+    templatesLoading.value = false
   }
 }
 
@@ -356,6 +378,7 @@ const wizardTitle = computed(() => {
 onMounted(async () => {
   await fetchRecruitmentSessions()
   await fetchInterviewers()
+  await fetchScoreTemplates()
 
   if (isEditing.value) {
     await fetchSessionDetail()

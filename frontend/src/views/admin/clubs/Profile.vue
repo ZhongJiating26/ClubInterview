@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { useUserStore } from '@/stores/user'
 import { getClub, updateClub, type ClubInfo } from '@/api/modules/clubs'
+import { getClubCategories } from '@/api/modules/system'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -40,15 +41,31 @@ const loading = ref(false)
 const error = ref('')
 const success = ref('')
 
-// 社团分类选项
-const categoryOptions = [
-  '学术科技类',
-  '文化艺术类',
-  '体育健身类',
-  '公益服务类',
-  '创新创业类',
-  '其他类'
-]
+// 社团分类选项（从 API 获取）
+const categoryOptions = ref<string[]>([])
+const categoriesLoading = ref(false)
+
+// 获取社团分类
+const fetchCategories = async () => {
+  try {
+    categoriesLoading.value = true
+    const data = await getClubCategories()
+    categoryOptions.value = data.map(c => c.name)
+  } catch (err: any) {
+    console.error('获取社团分类失败:', err)
+    // 如果 API 调用失败，使用默认分类
+    categoryOptions.value = [
+      '学术科技类',
+      '文化艺术类',
+      '体育健身类',
+      '公益服务类',
+      '创新创业类',
+      '其他类'
+    ]
+  } finally {
+    categoriesLoading.value = false
+  }
+}
 
 // 获取社团信息
 const fetchClub = async () => {
@@ -209,6 +226,7 @@ const statusText: Record<string, string> = {
 }
 
 onMounted(() => {
+  fetchCategories()
   fetchClub()
 })
 </script>

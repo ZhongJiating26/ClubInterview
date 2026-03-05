@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { getMyInterviewRecordDetail } from '@/api/modules/interview'
+import { getMyInterviewRecordDetail, confirmInterview, getMyInterviewResult } from '@/api/modules/interview'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { ArrowLeft, Calendar, Clock, MapPin, User, FileText, Star, CheckCircle, XCircle, AlertCircle } from 'lucide-vue-next'
+import { ArrowLeft, Calendar, Clock, MapPin, User, FileText, Star, CheckCircle, XCircle, AlertCircle, Loader2 } from 'lucide-vue-next'
 
 const route = useRoute()
 const router = useRouter()
@@ -13,6 +13,32 @@ const candidateId = Number(route.params.candidateId)
 const record = ref<any>(null)
 const loading = ref(false)
 const error = ref('')
+const confirming = ref(false)
+const successMessage = ref('')
+
+// 面试结果
+const interviewResult = ref<any>(null)
+const loadingResult = ref(false)
+
+// 是否可以确认/拒绝面试
+const canConfirm = computed(() => {
+  return record.value && record.value.status === 'SCHEDULED'
+})
+
+// 是否已完成面试
+const isCompleted = computed(() => {
+  return record.value && record.value.status === 'COMPLETED'
+})
+
+// 获取录取状态信息
+const getDecisionInfo = (decision: string) => {
+  const infoMap: Record<string, { text: string; icon: any; color: string; bgColor: string }> = {
+    PASS: { text: '恭喜！您已通过面试', icon: CheckCircle, color: 'text-green-700', bgColor: 'bg-green-50 border-green-200' },
+    REJECT: { text: '很遗憾，您未通过面试', icon: XCircle, color: 'text-red-700', bgColor: 'bg-red-50 border-red-200' },
+    WAITLIST: { text: '您已被列入候补名单', icon: AlertCircle, color: 'text-yellow-700', bgColor: 'bg-yellow-50 border-yellow-200' }
+  }
+  return infoMap[decision] || { text: '面试结果待公布', icon: Clock, color: 'text-gray-700', bgColor: 'bg-gray-50 border-gray-200' }
+}
 
 // 获取面试记录详情
 const fetchDetail = async () => {
@@ -24,6 +50,61 @@ const fetchDetail = async () => {
     error.value = err.message || '获取面试记录详情失败'
   } finally {
     loading.value = false
+  }
+}
+
+// 确认面试
+const handleConfirm = async () => {
+  try {
+    confirming.value = true
+    error.value = ''
+    await confirmInterview(candidateId, { status: 'CONFIRMED' })
+    successMessage.value = '已确认面试'
+    // 刷新详情
+    await fetchDetail()
+    setTimeout(() => {
+      successMessage.value = ''
+    }, 3000)
+  } catch (err: any) {
+    error.value = err.message || '确认面试失败'
+  } finally {
+    confirming.value = false
+  }
+}
+
+// 拒绝面试
+const handleReject = async () => {
+  if (!confirm('确定要拒绝这次面试吗？')) {
+    return
+  }
+
+  try {
+    confirming.value = true
+    error.value = ''
+    await confirmInterview(candidateId, { status: 'REJECTED' })
+    successMessage.value = '已拒绝面试'
+    // 刷新详情
+    await fetchDetail()
+    setTimeout(() => {
+      successMessage.value = ''
+    }, 3000)
+  } catch (err: any) {
+    error.value = err.message || '拒绝面试失败'
+  } finally {
+    confirming.value = false
+  }
+}
+
+// 获取面试结果
+const fetchResult = async () => {
+  try {
+    loadingResult.value = true
+    interviewResult.value = await getMyInterviewResult(candidateId)
+  } catch (err: any) {
+    // 如果获取失败，可能还没有结果，忽略错误
+    console.warn('获取面试结果失败:', err.message)
+  } finally {
+    loadingResult.value = false
   }
 }
 
@@ -52,6 +133,7 @@ const formatDate = (dateStr: string) => {
 
 onMounted(() => {
   fetchDetail()
+  fetchResult()
 })
 </script>
 
@@ -173,6 +255,58 @@ onMounted(() => {
             </Badge>
           </div>
         </div>
+      </div>
+
+      <!-- 确认/拒绝面试按钮（仅 SCHEDULED 状态显示） -->
+      <div v-if="canConfirm" class="bg-white rounded-lg p-4 space-y-3">
+        <h3 class="text-base font-semibold">确认面试时间</h3>
+        <p class="text-sm text-gray-500">请确认您是否能按时参加面试</p>
+        <div class="flex gap-3 pt-2">
+          <Button
+            @click="handleConfirm"
+            :disabled="confirming"
+            class="flex-1"
+          >
+            <Loader2 v-if="confirming" class="w-4 h-4 mr-2 animate-spin" />
+            <CheckCircle v-else class="w-4 h-4 mr-2" />
+            确认参加
+          </Button>
+          <Button
+            @click="handleReject"
+            :disabled="confirming"
+            variant="outline"
+            class="flex-1"
+          >
+            <Loader2 v-if="confirming" class="w-4 h-4 mr-2 animate-spin" />
+            <XCircle v-else class="w-4 h-4 mr-2" />
+            无法参加
+          </Button>
+        </div>
+      </div>
+
+      <!-- 面试结果（仅 COMPLETED 状态且有结果时显示） -->
+      <div v-if="isCompleted && interviewResult" class="rounded-lg p-4 border-2" :class="getDecisionInfo(interviewResult.decision || '').bgColor">
+        <div class="flex items-start gap-3">
+          <component :is="getDecisionInfo(interviewResult.decision || '').icon" class="w-6 h-6 mt-0.5 flex-shrink-0" :class="getDecisionInfo(interviewResult.decision || '').color" />
+          <div class="flex-1">
+            <h3 class="text-lg font-semibold mb-2" :class="getDecisionInfo(interviewResult.decision || '').color">
+              {{ getDecisionInfo(interviewResult.decision || '').text }}
+            </h3>
+            <div v-if="interviewResult.decision === 'PASS' && interviewResult.position_name" class="bg-white p-3 rounded-lg mt-3">
+              <p class="text-sm text-gray-600">录用岗位</p>
+              <p class="font-medium">{{ interviewResult.position_name }}</p>
+            </div>
+            <div v-if="interviewResult.notes" class="bg-white p-3 rounded-lg mt-3">
+              <p class="text-sm text-gray-600">备注</p>
+              <p class="text-sm">{{ interviewResult.notes }}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 成功提示 -->
+      <div v-if="successMessage" class="bg-green-50 text-green-700 p-4 rounded-lg">
+        {{ successMessage }}
       </div>
 
       <!-- 自我介绍 -->

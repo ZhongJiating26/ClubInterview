@@ -23,8 +23,18 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import {
-  Mic, MicOff, Upload, FileAudio, User, Phone, Mail, Calendar, Clock, CheckCircle2, AlertCircle
+  Mic, MicOff, Upload, FileAudio, User, Phone, Mail, Calendar, Clock, CheckCircle2, AlertCircle, Loader2
 } from 'lucide-vue-next'
+import {
+  getCandidateDetail,
+  getSessionScoreItems,
+  startInterview,
+  updateInterviewRecord,
+  submitScore,
+  uploadInterviewRecording,
+  type InterviewCandidate,
+  type ScoreItem
+} from '@/api/modules/interview'
 
 const route = useRoute()
 const router = useRouter()
@@ -33,20 +43,17 @@ const router = useRouter()
 const fileInputRef = ref<HTMLInputElement | null>(null)
 
 // 获取候选人ID
-const candidateId = ref<number>(Number(route.query.candidateId) || 1)
+const candidateId = ref<number>(Number(route.params.candidateId) || Number(route.query.candidateId))
 
-// 候选人信息 - 书法社示例
-const candidate = ref({
-  id: 1,
-  name: '李文轩',
-  student_id: '202301088',
-  phone: '13912345678',
-  email: 'liwenxuan@example.com',
-  department: '宣传部',
-  position: '书法编辑',
-  session_name: '2026年春季书法社招新',
-  self_intro: '自幼学习书法，擅长楷书和行书，曾获全国青少年书法大赛二等奖。热爱传统文化，希望通过书法社与更多同学交流学习，提升书法水平。'
-})
+// 加载状态
+const loading = ref(false)
+const error = ref('')
+
+// 候选人信息
+const candidate = ref<InterviewCandidate & { application?: any } | null>(null)
+
+// 面试记录ID
+const interviewRecordId = ref<number | null>(null)
 
 // 录音状态
 const isRecording = ref(false)
@@ -60,15 +67,13 @@ let timer: number | null = null
 // 上传状态
 const uploadedFile = ref<File | null>(null)
 const uploadProgress = ref(0)
+const uploading = ref(false)
 
-// 评分状态 - 书法社评分项
-const scores = ref([
-  { id: 1, title: '书法基础', maxScore: 30, score: 0, weight: 0.3 },
-  { id: 2, title: '创作能力', maxScore: 25, score: 0, weight: 0.25 },
-  { id: 3, title: '艺术素养', maxScore: 20, score: 0, weight: 0.2 },
-  { id: 4, title: '学习态度', maxScore: 15, score: 0, weight: 0.15 },
-  { id: 5, title: '团队协作', maxScore: 10, score: 0, weight: 0.1 }
-])
+// 评分项
+const scoreItems = ref<ScoreItem[]>([])
+
+// 评分
+const scores = ref<Record<number, number>>({})
 
 // 面试记录
 const interviewNotes = ref('')
@@ -82,16 +87,56 @@ const showUploadDialog = ref(false)
 
 // 计算总分
 const totalScore = computed(() => {
-  return scores.value.reduce((sum, item) => {
-    return sum + (item.score * item.weight)
+  if (scoreItems.value.length === 0) return 0
+  return scoreItems.value.reduce((sum, item) => {
+    const score = scores.value[item.id] || 0
+    return sum + (score * item.weight)
   }, 0)
 })
 
-// 格式化时间
-const formatTime = (seconds: number) => {
-  const mins = Math.floor(seconds / 60)
-  const secs = seconds % 60
-  return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+// 获取候选人详情
+const fetchCandidateDetail = async () => {
+  try {
+    loading.value = true
+    error.value = ''
+    const data = await getCandidateDetail(candidateId.value)
+    candidate.value = data
+
+    // 如果候选人已有面试记录，获取该记录的评分
+    if (data.session_id) {
+      await fetchScoreItems(data.session_id)
+    }
+  } catch (err: any) {
+    error.value = err.message || '获取候选人信息失败'
+  } finally {
+    loading.value = false
+  }
+}
+
+// 获取评分项
+const fetchScoreItems = async (sessionId: number) => {
+  try {
+    const items = await getSessionScoreItems(sessionId)
+    scoreItems.value = items
+    // 初始化评分
+    items.forEach(item => {
+      if (!scores.value[item.id]) {
+        scores.value[item.id] = 0
+      }
+    })
+  } catch (err: any) {
+    console.error('获取评分项失败:', err)
+  }
+}
+
+// 开始面试
+const handleStartInterview = async () => {
+  try {
+    const record = await startInterview(candidateId.value)
+    interviewRecordId.value = record.id
+  } catch (err: any) {
+    console.error('开始面试失败:', err)
+  }
 }
 
 // 开始录音
@@ -142,25 +187,79 @@ const deleteUploadedFile = () => {
   uploadProgress.value = 0
 }
 
+// 上传录音文件
+const handleUploadRecording = async () => {
+  if (!uploadedFile.value || !interviewRecordId.value) return
+
+  try {
+    uploading.value = true
+    await uploadInterviewRecording(interviewRecordId.value, uploadedFile.value)
+    hasRecording.value = true
+    alert('录音上传成功')
+  } catch (err: any) {
+    alert('上传失败: ' + (err.message || '未知错误'))
+  } finally {
+    uploading.value = false
+  }
+}
+
 // 打开提交确认对话框
 const openSubmitDialog = () => {
   showSubmitDialog.value = true
 }
 
 // 提交评分
-const submitScore = () => {
-  isSubmitting.value = true
-  setTimeout(() => {
-    isSubmitting.value = false
+const submitScore = async () => {
+  if (!interviewRecordId.value) {
+    alert('请先开始面试')
+    return
+  }
+
+  try {
+    isSubmitting.value = true
+
+    // 先保存面试记录
+    await updateInterviewRecord(interviewRecordId.value, {
+      notes: interviewNotes.value
+    })
+
+    // 提交评分
+    const scoreData = {
+      scores: Object.entries(scores.value).map(([scoreItemId, score]) => ({
+        score_item_id: Number(scoreItemId),
+        score,
+        notes: ''
+      })),
+      notes: interviewNotes.value
+    }
+
+    await submitScore(interviewRecordId.value, scoreData)
+
     showSubmitDialog.value = false
-    // 提交成功后返回
+    alert('评分提交成功')
     router.push({ name: 'InterviewerInterviewsRecords' })
-  }, 1500)
+  } catch (err: any) {
+    alert('提交失败: ' + (err.message || '未知错误'))
+  } finally {
+    isSubmitting.value = false
+  }
 }
 
 // 保存草稿
-const saveDraft = () => {
-  // TODO: 保存草稿逻辑
+const saveDraft = async () => {
+  if (!interviewRecordId.value) {
+    alert('请先开始面试')
+    return
+  }
+
+  try {
+    await updateInterviewRecord(interviewRecordId.value, {
+      notes: interviewNotes.value
+    })
+    alert('草稿已保存')
+  } catch (err: any) {
+    alert('保存失败: ' + (err.message || '未知错误'))
+  }
 }
 
 // 返回列表
@@ -189,8 +288,20 @@ const validateScores = () => {
   return true
 }
 
-// 页面卸载时清除定时器
+// 格式化时间
+const formatTime = (seconds: number) => {
+  const mins = Math.floor(seconds / 60)
+  const secs = seconds % 60
+  return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+}
+
+// 页面加载时获取数据
 onMounted(() => {
+  if (candidateId.value) {
+    fetchCandidateDetail()
+  }
+
+  // 页面卸载时清除定时器
   return () => {
     if (timer) {
       clearInterval(timer)
@@ -201,88 +312,99 @@ onMounted(() => {
 
 <template>
   <div class="absolute inset-0 flex flex-col">
-    <!-- 顶部导航栏 -->
-    <div class="bg-white border-b border-gray-200 px-6 py-4 flex-shrink-0">
-      <div class="flex items-center justify-between">
-        <div class="flex items-center gap-4">
-          <Button variant="ghost" size="sm" @click="goBack">
-            ← 返回
-          </Button>
-          <div>
-            <h1 class="text-xl font-semibold text-gray-800">面试评分</h1>
-            <p class="text-sm text-gray-500">{{ formatDate() }}</p>
-          </div>
-        </div>
-        <div class="flex gap-2">
-          <Button variant="outline" @click="saveDraft">
-            保存草稿
-          </Button>
-          <Button class="bg-blue-600 hover:bg-blue-700" @click="openSubmitDialog" :disabled="!hasRecording && !uploadedFile">
-            提交评分
-          </Button>
-        </div>
+    <!-- 加载状态 -->
+    <div v-if="loading" class="flex-1 flex items-center justify-center bg-gray-50">
+      <div class="text-center">
+        <Loader2 class="w-8 h-8 animate-spin mx-auto mb-4 text-blue-600" />
+        <p class="text-gray-600">加载中...</p>
+      </div>
+    </div>
+
+    <!-- 错误状态 -->
+    <div v-else-if="error" class="flex-1 flex items-center justify-center bg-gray-50">
+      <div class="text-center">
+        <AlertCircle class="w-12 h-12 text-red-500 mx-auto mb-4" />
+        <p class="text-red-600 mb-4">{{ error }}</p>
+        <Button @click="router.back()">返回</Button>
       </div>
     </div>
 
     <!-- 主要内容 -->
-    <div class="flex-1 min-h-0 overflow-y-auto p-6 bg-gray-50">
-      <div class="max-w-6xl mx-auto">
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <!-- 左侧：候选人信息和录音 -->
-          <div class="lg:col-span-2 space-y-6">
-            <!-- 候选人信息卡片 -->
-            <Card class="bg-white">
-              <CardHeader>
-                <CardTitle class="text-lg flex items-center gap-2">
-                  <User class="w-5 h-5 text-blue-600" />
-                  候选人信息
-                </CardTitle>
-              </CardHeader>
-              <CardContent class="space-y-4">
-                <div class="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label class="text-gray-600 text-sm">姓名</Label>
-                    <p class="font-medium text-gray-800">{{ candidate.name }}</p>
+    <div v-else-if="candidate" class="flex-1 flex flex-col min-h-0">
+      <!-- 顶部导航栏 -->
+      <div class="bg-white border-b border-gray-200 px-6 py-4 flex-shrink-0">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-4">
+            <Button variant="ghost" size="sm" @click="router.back()">
+              ← 返回
+            </Button>
+            <div>
+              <h1 class="text-xl font-semibold text-gray-800">面试评分</h1>
+              <p class="text-sm text-gray-500">{{ formatDate() }}</p>
+            </div>
+          </div>
+          <div class="flex gap-2">
+            <Button variant="outline" @click="saveDraft" :disabled="!interviewRecordId">
+              保存草稿
+            </Button>
+            <Button @click="handleStartInterview" v-if="!interviewRecordId" class="bg-green-600 hover:bg-green-700">
+              开始面试
+            </Button>
+            <Button class="bg-blue-600 hover:bg-blue-700" @click="openSubmitDialog" :disabled="!interviewRecordId || (!hasRecording && !uploadedFile)">
+              提交评分
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 主要内容 -->
+      <div class="flex-1 min-h-0 overflow-y-auto p-6 bg-gray-50">
+        <div class="max-w-6xl mx-auto">
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- 左侧：候选人信息和录音 -->
+            <div class="lg:col-span-2 space-y-6">
+              <!-- 候选人信息卡片 -->
+              <Card class="bg-white">
+                <CardHeader>
+                  <CardTitle class="text-lg flex items-center gap-2">
+                    <User class="w-5 h-5 text-blue-600" />
+                    候选人信息
+                  </CardTitle>
+                </CardHeader>
+                <CardContent class="space-y-4">
+                  <div class="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label class="text-gray-600 text-sm">姓名</Label>
+                      <p class="font-medium text-gray-800">{{ candidate.user_name }}</p>
+                    </div>
+                    <div>
+                      <Label class="text-gray-600 text-sm">联系电话</Label>
+                      <p class="font-medium text-gray-800 flex items-center gap-1">
+                        <Phone class="w-4 h-4 text-gray-400" />
+                        {{ candidate.user_phone || '-' }}
+                      </p>
+                    </div>
+                    <div>
+                      <Label class="text-gray-600 text-sm">应聘部门</Label>
+                      <Badge variant="outline" class="bg-blue-50 text-blue-700 border-blue-200 mt-1">
+                        {{ candidate.department_name || '-' }}
+                      </Badge>
+                    </div>
+                    <div>
+                      <Label class="text-gray-600 text-sm">应聘岗位</Label>
+                      <Badge variant="outline" class="bg-purple-50 text-purple-700 border-purple-200 mt-1">
+                        {{ candidate.position_name || '-' }}
+                      </Badge>
+                    </div>
                   </div>
-                  <div>
-                    <Label class="text-gray-600 text-sm">学号</Label>
-                    <p class="font-medium text-gray-800">{{ candidate.student_id }}</p>
-                  </div>
-                  <div>
-                    <Label class="text-gray-600 text-sm">联系电话</Label>
-                    <p class="font-medium text-gray-800 flex items-center gap-1">
-                      <Phone class="w-4 h-4 text-gray-400" />
-                      {{ candidate.phone }}
+                  <div v-if="candidate.application && candidate.application.self_intro">
+                    <Label class="text-gray-600 text-sm">自我介绍</Label>
+                    <p class="text-sm text-gray-600 bg-gray-50 p-3 rounded-md mt-1">
+                      {{ candidate.application.self_intro }}
                     </p>
                   </div>
-                  <div>
-                    <Label class="text-gray-600 text-sm">邮箱</Label>
-                    <p class="font-medium text-gray-800 flex items-center gap-1">
-                      <Mail class="w-4 h-4 text-gray-400" />
-                      {{ candidate.email }}
-                    </p>
-                  </div>
-                  <div>
-                    <Label class="text-gray-600 text-sm">应聘部门</Label>
-                    <Badge variant="outline" class="bg-blue-50 text-blue-700 border-blue-200 mt-1">
-                      {{ candidate.department }}
-                    </Badge>
-                  </div>
-                  <div>
-                    <Label class="text-gray-600 text-sm">应聘岗位</Label>
-                    <Badge variant="outline" class="bg-purple-50 text-purple-700 border-purple-200 mt-1">
-                      {{ candidate.position }}
-                    </Badge>
-                  </div>
-                </div>
-                <div>
-                  <Label class="text-gray-600 text-sm">自我介绍</Label>
-                  <p class="text-sm text-gray-600 bg-gray-50 p-3 rounded-md mt-1">
-                    {{ candidate.self_intro }}
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
 
             <!-- 录音/上传区域 -->
             <Card class="bg-white">
@@ -369,8 +491,19 @@ onMounted(() => {
                       variant="outline"
                       size="sm"
                       @click="triggerFileSelect"
+                      :disabled="uploading"
                     >
-                      选择文件
+                      {{ uploading ? '上传中...' : '选择文件' }}
+                    </Button>
+                    <Button
+                      v-if="uploadedFile && !hasRecording"
+                      size="sm"
+                      @click="handleUploadRecording"
+                      :disabled="uploading"
+                      class="bg-blue-600 hover:bg-blue-700"
+                    >
+                      <Loader2 v-if="uploading" class="w-4 h-4 mr-2 animate-spin" />
+                      {{ uploading ? '上传中...' : '确认上传' }}
                     </Button>
                   </div>
 
@@ -427,14 +560,17 @@ onMounted(() => {
                 <CardTitle class="text-lg">评分表</CardTitle>
               </CardHeader>
               <CardContent class="space-y-4">
-                <div v-for="item in scores" :key="item.id" class="space-y-2">
+                <div v-if="scoreItems.length === 0" class="text-center text-gray-500 py-4">
+                  暂无评分项
+                </div>
+                <div v-for="item in scoreItems" :key="item.id" class="space-y-2">
                   <div class="flex items-center justify-between">
                     <Label class="text-sm font-medium text-gray-700">{{ item.title }}</Label>
                     <span class="text-sm text-gray-500">满分 {{ item.maxScore }}</span>
                   </div>
                   <div class="flex items-center gap-2">
                     <Input
-                      v-model.number="item.score"
+                      v-model.number="scores[item.id]"
                       type="number"
                       :min="0"
                       :max="item.maxScore"
@@ -443,6 +579,7 @@ onMounted(() => {
                     />
                     <span class="text-sm text-gray-500">/ {{ item.maxScore }}</span>
                   </div>
+                  <p v-if="item.description" class="text-xs text-gray-500">{{ item.description }}</p>
                 </div>
 
                 <!-- 总分显示 -->
@@ -482,7 +619,7 @@ onMounted(() => {
           <div class="grid grid-cols-2 gap-4 text-sm">
             <div>
               <span class="text-gray-600">候选人：</span>
-              <span class="font-medium">{{ candidate.name }}</span>
+              <span class="font-medium">{{ candidate?.user_name }}</span>
             </div>
             <div>
               <span class="text-gray-600">总分：</span>
@@ -493,9 +630,9 @@ onMounted(() => {
           <div class="border-t border-gray-200 pt-4">
             <p class="text-sm font-medium text-gray-700 mb-2">评分详情：</p>
             <div class="space-y-1 text-sm">
-              <div v-for="item in scores" :key="item.id" class="flex justify-between">
+              <div v-for="item in scoreItems" :key="item.id" class="flex justify-between">
                 <span class="text-gray-600">{{ item.title }}</span>
-                <span class="font-medium">{{ item.score }} / {{ item.maxScore }}</span>
+                <span class="font-medium">{{ scores[item.id] || 0 }} / {{ item.maxScore }}</span>
               </div>
             </div>
           </div>
@@ -510,16 +647,3 @@ onMounted(() => {
             <p class="text-sm text-blue-800">提交后评分将锁定，如需修改请联系管理员</p>
           </div>
         </div>
-
-        <DialogFooter>
-          <Button variant="outline" @click="showSubmitDialog = false" :disabled="isSubmitting">
-            取消
-          </Button>
-          <Button @click="submitScore" :disabled="isSubmitting" class="bg-blue-600 hover:bg-blue-700">
-            {{ isSubmitting ? '提交中...' : '确认提交' }}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  </div>
-</template>

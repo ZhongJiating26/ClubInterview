@@ -8,6 +8,7 @@ import {
   deleteDepartment,
   type Department,
 } from '@/api/modules/clubs'
+import { getClubCategories } from '@/api/modules/system'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -50,14 +51,26 @@ const formData = ref({
   description: '',
 })
 
-const categoryOptions = [
-  '学术科技类',
-  '文化艺术类',
-  '体育健身类',
-  '公益服务类',
-  '创新创业类',
-  '其他类',
-]
+// 社团分类选项（预留，当前未使用）
+const categoryOptions = ref<string[]>([])
+
+// 获取社团分类
+const fetchCategories = async () => {
+  try {
+    const data = await getClubCategories()
+    categoryOptions.value = data.map(c => c.name)
+  } catch (err: any) {
+    console.error('获取社团分类失败:', err)
+    categoryOptions.value = [
+      '学术科技类',
+      '文化艺术类',
+      '体育健身类',
+      '公益服务类',
+      '创新创业类',
+      '其他类'
+    ]
+  }
+}
 
 // 获取社团 ID
 const getClubId = () => {
@@ -171,6 +184,7 @@ const handleDelete = async () => {
 }
 
 onMounted(() => {
+  fetchCategories()
   fetchDepartments()
 })
 </script>

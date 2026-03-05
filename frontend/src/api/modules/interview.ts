@@ -381,3 +381,14 @@ export function getMyInterviewRecordDetail(candidateId: number) {
     `/api/student/interviews/${candidateId}`
   )
 }
+
+// 获取学生的面试结果（录取状态）
+export function getMyInterviewResult(candidateId: number) {
+  return get<{
+    candidate_id: number
+    decision: 'PASS' | 'REJECT' | 'WAITLIST' | null
+    position_id?: number
+    position_name?: string
+    notes?: string
+  }>(`/api/student/interviews/${candidateId}/result`)
+}

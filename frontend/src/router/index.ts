@@ -238,6 +238,12 @@ const routes: RouteRecordRaw[] = [
             meta: { title: '面试评分', roles: ['interviewer'] }
           },
           {
+            path: 'score/:candidateId',
+            name: 'InterviewerInterviewsScoreDetail',
+            component: () => import('@/views/interviewer/interviews/Score.vue'),
+            meta: { title: '面试评分', roles: ['interviewer'] }
+          },
+          {
             path: 'records',
             name: 'InterviewerInterviewsRecords',
             component: () => import('@/views/interviewer/interviews/Records.vue'),
@@ -300,6 +306,12 @@ const routes: RouteRecordRaw[] = [
         name: 'StudentProfile',
         component: () => import('@/views/student/Profile.vue'),
         meta: { title: '我的', roles: ['student'] }
+      },
+      {
+        path: 'settings',
+        name: 'StudentSettings',
+        component: () => import('@/views/student/Settings.vue'),
+        meta: { title: '账号设置', roles: ['student'] }
       }
     ]
   },

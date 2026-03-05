@@ -78,3 +78,35 @@ export function initClub(data: {
 }) {
   return post<{ detail: string; club_id: number; is_new: boolean }>('/api/clubs/init', data)
 }
+
+// ============ 认证增强功能 ============
+
+// 修改密码
+export function changePassword(data: {
+  old_password: string
+  new_password: string
+}) {
+  return post<{ detail: string }>('/api/auth/change-password', data)
+}
+
+// 忘记密码 - 发送验证码
+export function forgotPassword(data: { phone: string }) {
+  return post<{ detail: string }>('/api/auth/forgot-password', data)
+}
+
+// 重置密码
+export function resetPassword(data: {
+  phone: string
+  code: string
+  new_password: string
+}) {
+  return post<{ detail: string }>('/api/auth/reset-password', data)
+}
+
+// 注销账号
+export function deleteAccount(data: {
+  password: string
+  confirmation: string
+}) {
+  return post<{ detail: string }>('/api/auth/account/delete', data)
+}

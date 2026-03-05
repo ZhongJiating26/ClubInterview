@@ -44,10 +44,27 @@ export function getProfile() {
   return get<StudentProfile>('/api/student/profile')
 }
 
-export function updateProfile(data: {
-  phone?: string
+// 更新学生个人资料
+export function updateStudentProfile(data: {
+  name?: string
   email?: string
-  nickname?: string
+  major?: string
+  avatar_url?: string
 }) {
   return put('/api/student/profile', data)
+}
+
+// ============ 学生端面试管理 ============
+
+// 注意：面试相关的主要 API 已在 interview.ts 中定义
+// 这里保留一些特定于学生端的辅助接口
+
+// 获取面试结果（包含录取状态）
+export function getInterviewResult(candidateId: number) {
+  return get<{
+    id: number
+    status: 'pending' | 'admitted' | 'rejected'
+    score: number | null
+    feedback: string | null
+  }>(`/api/student/interviews/${candidateId}/result`)
 }

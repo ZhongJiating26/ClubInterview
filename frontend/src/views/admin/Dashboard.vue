@@ -39,7 +39,7 @@ const noClub = ref(false)
 const stats = ref<DashboardStats | null>(null)
 const loading = ref(false)
 const error = ref('')
-const useMockData = ref(true) // 默认使用模拟数据
+const useMockData = ref(false) // 默认使用真实数据
 
 // 获取社团资料检查状态
 const fetchProfileCheck = async () => {
