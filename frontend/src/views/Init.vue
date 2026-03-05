@@ -11,23 +11,43 @@ import SchoolSelect from '@/components/SchoolSelect.vue'
 
 const router = useRouter()
 const route = useRoute()
+
+// 返回重新选择角色
+const goBackToRoleSelect = () => {
+  router.push('/role-select')
+}
 const userStore = useUserStore()
 
 // 从路由获取角色参数
 const role = ref(route.query.role as string || '')
 
+// 验证角色参数，确保是小写
+if (role.value) {
+  role.value = role.value.toLowerCase()
+}
+
 // 角色ID映射（根据实际后端配置调整）
 const roleIdMap: Record<string, number> = {
-  admin: 2,        // 社团管理员
+  admin: 1,        // 系统管理员
+  club_admin: 2,   // 社团管理员
   interviewer: 3,  // 面试官
   student: 4       // 普通学生
 }
 
 // 角色代码映射（用于 bind-user 接口）
 const roleCodeMap: Record<string, string> = {
-  admin: 'CLUB_ADMIN',
+  admin: 'ADMIN',       // 系统管理员
+  club_admin: 'CLUB_ADMIN',  // 社团管理员
   interviewer: 'INTERVIEWER',
   student: 'STUDENT'
+}
+
+// 角色显示名称映射
+const roleNameMap: Record<string, string> = {
+  admin: '系统管理员',
+  club_admin: '社团管理员',
+  interviewer: '面试官',
+  student: '普通学生'
 }
 
 // 表单数据
@@ -140,8 +160,8 @@ const handleInit = async () => {
   msg = validators.email(email.value)
   if (msg) { error.value = msg; return }
 
-  // 社团管理员需要填写社团名称
-  if (role.value === 'admin') {
+  // 社团管理员或系统管理员需要填写社团名称
+  if (role.value === 'admin' || role.value === 'club_admin') {
     msg = validators.clubName(clubName.value)
     if (msg) { error.value = msg; return }
   }
@@ -152,7 +172,7 @@ const handleInit = async () => {
     // 社团管理员：先检查社团是否存在
     let clubId: number | null = null
 
-    if (role.value === 'admin' && schoolCode.value) {
+    if ((role.value === 'admin' || role.value === 'club_admin') && schoolCode.value) {
       // 1. 检查社团是否存在
       const checkRes = await checkClub({
         club_name: clubName.value,
@@ -197,7 +217,7 @@ const handleInit = async () => {
     }
 
     // 4. 社团管理员：关联用户到社团
-    if (role.value === 'admin' && clubId) {
+    if ((role.value === 'admin' || role.value === 'club_admin') && clubId) {
       await bindUserToClub(clubId, {
         user_id: userId,
         role_code: roleCodeMap[role.value] || roleCodeMap.admin
@@ -243,8 +263,17 @@ const handleInit = async () => {
         <h1 class="text-2xl font-bold">完善个人信息</h1>
         <p class="text-muted-foreground text-sm">
           请填写以下信息完成注册
-          <span v-if="role" class="text-primary">({{ role === 'admin' ? '社团管理员' : role === 'interviewer' ? '面试官' : '普通学生' }})</span>
+          <span v-if="role" class="text-primary">({{ roleNameMap[role] || '普通学生' }})</span>
         </p>
+        <!-- 重新选择角色按钮 -->
+        <Button
+          type="button"
+          variant="link"
+          @click="goBackToRoleSelect"
+          class="text-sm text-muted-foreground"
+        >
+          ← 重新选择角色
+        </Button>
       </div>
 
       <!-- 表单 -->

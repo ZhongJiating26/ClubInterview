@@ -88,7 +88,8 @@ request.interceptors.response.use(
         case 403:
           return Promise.reject(new Error('没有权限访问'))
         case 404:
-          return Promise.reject(new Error('请求的资源不存在'))
+          // 使用后端返回的具体错误信息
+          return Promise.reject(new Error(errorMessage || '请求的资源不存在'))
         case 422:
           return Promise.reject(new Error(errorMessage || '参数验证失败'))
         case 500:

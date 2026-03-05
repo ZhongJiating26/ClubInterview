@@ -1,17 +1,10 @@
 from typing import Optional
 
 from sqlmodel import Session, select
-from passlib.context import CryptContext
+import bcrypt
 
 from app.models.user_account import UserAccount
 from app.repositories.base import BaseRepository
-
-
-# 密码哈希工具（bcrypt）
-pwd_context = CryptContext(
-    schemes=["bcrypt"],
-    deprecated="auto",
-)
 
 
 class UserAccountRepository(BaseRepository[UserAccount]):
@@ -25,10 +18,27 @@ class UserAccountRepository(BaseRepository[UserAccount]):
     # ========= 密码相关 =========
 
     def hash_password(self, raw_password: str) -> str:
-        return pwd_context.hash(raw_password)
+        """
+        对密码进行哈希
+        bcrypt 限制密码最大 72 字节
+        """
+        # bcrypt 最大 72 字节，需要截断
+        password_bytes = raw_password.encode('utf-8')
+        if len(password_bytes) > 72:
+            password_bytes = password_bytes[:72]
+        return bcrypt.hashpw(password_bytes, bcrypt.gensalt()).decode('utf-8')
 
     def verify_password(self, raw_password: str, password_hash: str) -> bool:
-        return pwd_context.verify(raw_password, password_hash)
+        """
+        验证密码
+        """
+        password_bytes = raw_password.encode('utf-8')
+        # bcrypt hash 存储的是 bytes，需要正确编码
+        try:
+            return bcrypt.checkpw(password_bytes, password_hash.encode('utf-8'))
+        except Exception:
+            # 兼容旧格式（已经是 bytes）
+            return bcrypt.checkpw(password_bytes, password_hash)
 
     # ========= 查询 =========
 
@@ -115,3 +125,43 @@ class UserAccountRepository(BaseRepository[UserAccount]):
         session.commit()
         session.refresh(user)
         return user
+
+    # ========= 密码管理 =========
+
+    def change_password(
+        self,
+        session: Session,
+        user: UserAccount,
+        new_password: str,
+    ) -> UserAccount:
+        """
+        修改密码
+        - 更新密码哈希
+        - 增加 token_version 使旧 Token 失效
+        """
+        user.password_hash = self.hash_password(new_password)
+        user.token_version += 1  # 使所有旧 Token 失效
+
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+        return user
+
+    def soft_delete(self, session: Session, user: UserAccount) -> UserAccount:
+        """
+        软删除账号
+        - 设置 is_deleted = 1
+        - 设置 deleted_at 为当前时间
+        """
+        user.is_deleted = 1
+        user.deleted_at = self._get_now()
+
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+        return user
+
+    def _get_now(self):
+        """获取当前时间"""
+        from datetime import datetime
+        return datetime.utcnow()
