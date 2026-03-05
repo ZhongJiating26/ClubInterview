@@ -1,6 +1,5 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { useRouter } from 'vue-router'
 import { login as loginApi, getMe, type UserInfo } from '@/api/modules/auth'
 
 export type UserRole = 'admin' | 'interviewer' | 'student'
@@ -10,8 +9,6 @@ export interface UserProfile extends UserInfo {
 }
 
 export const useUserStore = defineStore('user', () => {
-  const router = useRouter()
-
   const token = ref<string>(localStorage.getItem('token') || '')
   const userInfo = ref<UserInfo | null>(null)
 
@@ -54,7 +51,6 @@ export const useUserStore = defineStore('user', () => {
     token.value = ''
     userInfo.value = null
     localStorage.removeItem('token')
-    router.push('/login')
   }
 
   // 判断是否有某个角色

@@ -128,19 +128,20 @@ const goToLogin = () => {
 
         <!-- 手机号 -->
         <div class="grid gap-2">
-          <Label for="phone">手机号</Label>
+          <Label for="phone" class="text-lg">手机号</Label>
           <div class="flex gap-2">
             <Input
               id="phone"
               v-model="phone"
               type="tel"
               placeholder="请输入手机号"
-              class="flex-1"
+              class="flex-1 h-12 text-xl rounded-xl"
               required
             />
             <Button
               type="button"
               variant="outline"
+              class="h-12 rounded-xl w-28"
               :disabled="countdown > 0 || loading"
               @click="sendCodeAction"
             >
@@ -151,18 +152,19 @@ const goToLogin = () => {
 
         <!-- 验证码输入 -->
         <div class="grid gap-2">
-          <Label for="code">验证码</Label>
+          <Label for="code" class="text-lg">验证码</Label>
           <Input
             id="code"
             v-model="code"
             type="text"
             placeholder="请输入6位验证码"
             maxlength="6"
+            class="h-12 text-xl rounded-xl"
             required
           />
         </div>
 
-        <Button type="submit" class="w-full" :disabled="loading">
+        <Button type="submit" class="w-full h-12 text-lg rounded-xl" :disabled="loading">
           <span v-if="loading">注册中...</span>
           <span v-else>注册</span>
         </Button>

@@ -75,23 +75,25 @@ const goToForgetPassword = () => {
         </div>
 
         <div class="grid gap-2">
-          <Label for="phone">手机号</Label>
+          <Label for="phone" class="text-lg">手机号</Label>
           <Input
             id="phone"
             v-model="phone"
             type="tel"
             placeholder="请输入手机号"
+            class="h-12 text-xl rounded-xl"
             required
           />
         </div>
 
         <div class="grid gap-2">
-          <Label for="password">密码</Label>
+          <Label for="password" class="text-lg">密码</Label>
           <Input
             id="password"
             v-model="password"
             type="password"
             placeholder="请输入密码"
+            class="h-12 text-xl rounded-xl"
             required
           />
         </div>
@@ -107,7 +109,7 @@ const goToForgetPassword = () => {
           </button>
         </div>
 
-        <Button type="submit" class="w-full" :disabled="loading">
+        <Button type="submit" class="w-full h-12 text-lg rounded-xl" :disabled="loading">
           <span v-if="loading">登录中...</span>
           <span v-else>登录</span>
         </Button>

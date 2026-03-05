@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useRouter } from 'vue-router'
 import {
   BadgeCheck,
   Bell,
@@ -28,6 +29,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from '@/components/ui/sidebar'
+import { useUserStore } from '@/stores/user'
 
 const props = defineProps<{
   user: {
@@ -38,6 +40,13 @@ const props = defineProps<{
 }>()
 
 const { isMobile } = useSidebar()
+const router = useRouter()
+const userStore = useUserStore()
+
+const handleLogout = () => {
+  userStore.logout()
+  router.push('/login')
+}
 </script>
 
 <template>
@@ -105,7 +114,7 @@ const { isMobile } = useSidebar()
             </DropdownMenuItem>
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
-          <DropdownMenuItem>
+          <DropdownMenuItem @click="handleLogout">
             <LogOut />
             Log out
           </DropdownMenuItem>
