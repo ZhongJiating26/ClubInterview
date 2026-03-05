@@ -1,0 +1,3 @@
+CREATE DATABASE IF NOT EXISTS campus_club_interview
+DEFAULT CHARACTER SET utf8mb4
+COLLATE utf8mb4_general_ci;

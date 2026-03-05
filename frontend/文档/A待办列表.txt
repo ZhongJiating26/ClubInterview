@@ -1,0 +1,59 @@
+待办事项：
+
+🔴 高优先级（后端开发）
+=====================================
+1. 修复后端 RecruitmentSessionRepository.get_by_id() 方法缺失问题
+   - 文件位置：app/repository/recruitment_session.py
+   - 需要添加 get_by_id(id: int) 方法
+
+2. 实现以下后端接口（前端已完成，等待后端）
+   - POST /recruitment/sessions/{id}/publish - 发布招新场次
+   - GET /recruitment/sessions/{id}/statistics - 获取场次统计信息
+   - POST /interview/slots - 创建面试时间段
+   - GET /interview/slots - 获取面试时间段列表
+   - PUT /interview/slots/{id} - 更新面试时间段
+   - DELETE /interview/slots/{id} - 删除面试时间段
+   - POST /interview/arrangements - 安排面试
+   - GET /interview/arrangements - 获取面试安排列表
+   - PUT /interview/arrangements/{id}/complete - 完成面试
+   - GET /admin/clubs/members - 获取社团成员列表
+   - PUT /admin/clubs/members/{id} - 更新成员信息
+   - DELETE /admin/clubs/members/{id} - 移除社团成员
+
+🟡 中优先级（前端完善）
+=====================================
+1. 完善发布报名页面（Create.vue）
+   - 实现场次向导流程（SessionWizard.vue）
+   - 添加场次预览功能
+
+2. 完善面试管理相关页面
+   - 发布面试页面（Interviews/Create.vue）
+   - 面试记录页面（Interviews/Records.vue）
+   - 面试筛选页面（Interviews/Filter.vue）
+
+3. 完善社团人员管理页面
+   - 社团成员列表（Clubs/Members.vue）
+
+4. 添加系统设置页面
+   - 系统设置页面（Settings.vue）
+
+5. 面试官端功能
+   - 面试任务页面（Interviewer/Tasks.vue）
+   - 评分页面（Interviewer/Score.vue）
+
+🟢 低优先级（优化和改进）
+=====================================
+1. 优化用户体验
+   - 添加加载动画
+   - 添加骨架屏
+   - 优化错误提示
+   - 添加空状态提示
+
+2. 性能优化
+   - 添加列表分页
+   - 添加数据缓存
+   - 优化图片加载
+
+3. 测试
+   - 添加单元测试
+   - 添加 E2E 测试

@@ -1,0 +1,10 @@
+from app.models.school import School  # noqa: F401
+from app.models.user_account import UserAccount  # noqa: F401
+from app.models.role import Role  # noqa: F401
+from app.models.user_role import UserRole  # noqa: F401
+from app.models.verification_code import VerificationCode  # noqa: F401
+from app.models.club import Club  # noqa: F401
+from app.models.interview_session_interviewer import InterviewSessionInterviewer  # noqa: F401
+from app.models.interview_session_score_item import InterviewSessionScoreItem  # noqa: F401
+from app.models.score_template import ScoreTemplate  # noqa: F401
+from app.models.score_item import ScoreItem  # noqa: F401

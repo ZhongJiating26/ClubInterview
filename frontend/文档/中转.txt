@@ -1,0 +1,39 @@
+  1. 分配角色
+
+  POST /api/v1/auth/assign-role
+
+  请求：
+  {
+    "user_id": 1,
+    "role_id": 4,        // 角色ID
+    "club_id": null
+  }
+
+  响应：
+  {
+    "detail": "角色分配成功",
+    "user_role": {
+      "id": 1,
+      "user_id": 1,
+      "role_id": 4,
+      "club_id": null
+    }
+  }
+
+  2. 撤销角色
+
+  POST /api/v1/auth/revoke-role
+
+  请求：
+  {
+    "user_id": 1,
+    "role_id": 4,
+    "club_id": null
+  }
+
+  响应：
+  {"detail": "角色撤销成功"}
+
+
+
+前端会在信息初始化页面只填写个人信息、学校、社团名称，这个时候如果社团在这个学校不存在 

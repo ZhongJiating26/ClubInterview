@@ -1,0 +1,126 @@
+已完成步骤：
+
+====================================
+1️⃣ 项目初始化和基础配置
+====================================
+✅ 创建 Vue3 + Vite 项目
+✅ 依赖安装成功
+✅ 配置 Tailwind CSS（@tailwindcss/vite）
+✅ 配置 shadcn-vue 组件库（选择 Neutral 主题）
+✅ 添加 @/* 路径映射（tsconfig.json/tsconfig.app.json）
+✅ 安装 vite-tsconfig-paths 和 @types/node
+✅ 更新 vite.config.ts 配置
+✅ 添加 Button 组件测试通过
+✅ 安装 vue-router, pinia, axios
+
+====================================
+2️⃣ 路由和状态管理配置
+====================================
+✅ 配置路由系统（创建 11 个路由、11 个页面组件）
+✅ 在 main.ts 中引入路由和 Pinia
+✅ 创建多端布局（AdminLayout 电脑端、StudentLayout 手机H5、InterviewerLayout 电脑端）
+✅ 修改路由使用嵌套路由适配多端
+✅ 封装 Axios API 层（request.ts + 8 个模块）
+✅ 配置 Pinia 用户状态管理（user.ts）
+
+====================================
+3️⃣ 认证流程功能
+====================================
+✅ 创建登录页 Login.vue（表单验证、API 调用、根据 is_initialized 跳转）
+✅ 创建注册页 Register.vue（表单验证、API 调用）
+✅ 创建忘记密码页 ForgetPassword.vue（表单验证、API 调用）
+✅ 创建角色选择页 RoleSelect.vue（Carousel 组件、三种角色卡片、左右导航）
+✅ 创建信息初始化页 Init.vue（角色表单、社团创建、API 调用）
+✅ 创建 SchoolSelect 学校选择组件（搜索、下拉选择）
+✅ 添加 API 接口（assignRole、initClub）
+✅ 添加路由守卫（认证检查、权限验证、角色重定向）
+✅ 修复 bug：
+   - userStore.userInfo 为空问题
+   - primaryRole 角色码映射（CLUB_ADMIN、INTERVIEWER、STUDENT）
+   - 退出登录未清除状态
+   - SchoolSelect 下拉框遮挡问题
+✅ 配置网络访问（host: '0.0.0.0'、代理配置）
+
+====================================
+4️⃣ 管理后台基础页面
+====================================
+✅ 创建 404 页面 NotFound.vue
+✅ 添加侧边栏组件（AppSidebar、NavMain、NavSecondary、NavGroup、NavProjects、NavUser）
+✅ 配置管理后台侧边栏导航（数据看板、报名管理、面试管理、社团管理、系统设置）
+✅ 创建仪表盘页面 Dashboard.vue（社团资料完整性检查）
+✅ 创建社团资料页面 ClubProfile.vue（查看/编辑模式、Logo 上传）
+✅ 添加 API 接口（checkClubProfile、checkClub、bindUserToClub、getClub、updateClub、uploadLogo）
+✅ 修复注册流程（社团管理员创建社团并关联用户）
+✅ 修复组件问题（Textarea v-model、Badge 类型）
+
+====================================
+5️⃣ 部门和岗位管理
+====================================
+✅ 添加部门和岗位 API 接口
+✅ 更新侧边栏导航（部门管理、岗位管理）
+✅ 更新路由配置
+✅ 创建部门管理页面 Departments.vue（列表、新建、编辑、删除）
+✅ 创建岗位管理页面 Positions.vue（列表、新建、编辑、删除）
+✅ 添加 Dialog 组件
+
+====================================
+6️⃣ 报名管理功能
+====================================
+✅ 安装 shadcn-vue Table 组件
+✅ 创建历史报名记录页面 History.vue
+   - 使用 Table 组件展示报名列表
+   - 招新场次筛选
+   - 状态筛选（全部/待审核/已通过/已拒绝）
+   - 报名详情弹窗
+   - 分页功能
+✅ 创建报名审核页面 Review.vue
+   - 使用 Table 组件展示待审核报名
+   - 通过/拒绝按钮
+   - 拒绝理由输入
+   - 报名详情弹窗
+   - 分页功能
+✅ 创建发布报名页面 Create.vue（基础结构）
+
+====================================
+7️⃣ 学生端功能
+====================================
+✅ 创建学生首页 Home.vue
+   - 社团列表展示
+   - 搜索和筛选功能
+✅ 创建社团详情页 ClubDetail.vue
+   - 社团信息展示
+   - 招新场次列表
+✅ 创建报名页面 Apply.vue
+   - 岗位选择
+   - 自我介绍输入
+   - 报名提交
+✅ 添加学生报名 API 接口（submitSignup、getMySignups）
+
+====================================
+8️⃣ 路由和代理修复
+====================================
+✅ 修复 API 接口路径问题（移除 /api 前缀）
+✅ 修复响应格式处理（只对 /student 路径包装响应）
+✅ 修复 bindUserToClub 参数（使用 role_code 替代 role_id）
+✅ 修复前端路由被后端接管问题
+   - 移除 /admin/ 和 /student/ 的 Vite 代理配置
+   - 在 request.ts 中为 /admin/ 和 /student/ 设置直接访问后端
+✅ 修复刷新页面 404 问题（PC 管理员端和手机学生端）
+✅ 修复 URL 变化但页面不变问题（RouterView 使用 reactive route）
+
+====================================
+9️⃣ 组件问题修复
+====================================
+✅ 修复 SelectItem value="" 问题
+   - History.vue 中状态筛选使用 "all" 替代 ""
+   - Review.vue 中状态筛选使用 "all" 替代 ""
+✅ 修复 Profile.vue 标签未闭合问题
+✅ 修复 AdminLayout.vue RouterView key 问题
+
+====================================
+🔟 待办（后端需完成）
+====================================
+❌ 修复后端 RecruitmentSessionRepository.get_by_id() 方法
+❌ 实现面试管理相关接口
+❌ 实现社团成员管理接口
+❌ 完善场次发布和统计接口

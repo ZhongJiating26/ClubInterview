@@ -1,0 +1,17 @@
+eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJ0b2tlbl92ZXJzaW9uIjowLCJleHAiOjE3NjY1NzQ2MzB9.L5Pq_N8IU7Dun6fcbgxB6n9aPbVGJqZhZYfUR-8E_NY
+
+
+
+python - << 'EOF'
+from sqlmodel import Session
+from app.db.session import engine
+from app.api.deps import get_current_user_by_token
+
+token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJ0b2tlbl92ZXJzaW9uIjowLCJleHAiOjE3NjY1NzI3Njl9.kOr4r4etw3Rg1iwRdsa_pjXsWzQNqz8MI2FrXYnvFbM"
+
+with Session(engine) as session:
+    user = get_current_user_by_token(token, session)
+    print("user id:", user.id)
+    print("phone:", user.phone)
+EOF
+
