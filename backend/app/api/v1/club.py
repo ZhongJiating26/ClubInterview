@@ -23,6 +23,12 @@ from app.schemas.club import (
     CheckClubRequest, CheckClubResponse,
     BindUserRequest, BindUserResponse,
     HomeClubItem, ClubDetailResponse,
+    ClubListRequest, ClubListResponse, ClubListItem,
+    AuditClubRequest, AuditClubResponse,
+    ClubMemberItem, ClubMembersResponse,
+    UpdateMemberRoleRequest, UpdateMemberRoleResponse,
+    RemoveMemberRequest, RemoveMemberResponse,
+    ClubStatsResponse,
 )
 
 
@@ -494,3 +500,260 @@ def bind_user_to_club(
     session.commit()
 
     return BindUserResponse(detail=f"用户已关联到社团，角色：{role.name}")
+
+
+# ============ 社团管理增强功能 ============
+
+
+@router.get("", response_model=ClubListResponse)
+def get_club_list(
+    school_code: Optional[str] = None,
+    status: Optional[str] = None,
+    category: Optional[str] = None,
+    keyword: Optional[str] = None,
+    page: int = 1,
+    page_size: int = 20,
+    session: Session = Depends(get_session),
+):
+    """
+    获取社团列表（分页、搜索）
+
+    - 支持按学校筛选
+    - 支持按状态筛选（ACTIVE/INACTIVE/REVIEW）
+    - 支持按分类筛选
+    - 支持关键词搜索（社团名称）
+    - 支持分页
+    """
+    result = club_repo.get_club_list(
+        session,
+        school_code=school_code,
+        status=status,
+        category=category,
+        keyword=keyword,
+        page=page,
+        page_size=page_size,
+    )
+
+    return ClubListResponse(
+        items=[ClubListItem(**item) for item in result["items"]],
+        total=result["total"],
+        page=page,
+        page_size=page_size,
+    )
+
+
+@router.post("/{club_id}/audit", response_model=AuditClubResponse)
+def audit_club(
+    club_id: int,
+    data: AuditClubRequest,
+    session: Session = Depends(get_session),
+):
+    """
+    审核社团（管理员功能）
+
+    - 通过审核：将社团状态改为 ACTIVE
+    - 拒绝审核：将社团状态改为 INACTIVE，需填写拒绝原因
+    """
+    # 检查社团是否存在
+    club = club_repo.get(session, club_id)
+    if not club or club.is_deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="社团不存在",
+        )
+
+    # 检查社团当前状态是否为待审核
+    if club.status != "REVIEW":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"社团当前状态为 {club.status}，无法审核",
+        )
+
+    # 拒绝时必须填写原因
+    if not data.approved and not data.reason:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="拒绝审核时必须填写拒绝原因",
+        )
+
+    # 更新社团状态
+    club_repo.audit_club(
+        session,
+        club=club,
+        approved=data.approved,
+        reason=data.reason,
+    )
+
+    return AuditClubResponse(detail="社团审核完成")
+
+
+@router.get("/{club_id}/members", response_model=ClubMembersResponse)
+def get_club_members(
+    club_id: int,
+    session: Session = Depends(get_session),
+):
+    """
+    获取社团成员列表
+
+    - 返回所有与该社团关联的用户及其角色
+    """
+    # 检查社团是否存在
+    club = club_repo.get(session, club_id)
+    if not club or club.is_deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="社团不存在",
+        )
+
+    # 获取社团成员
+    members = club_repo.get_club_members(session, club_id)
+
+    return ClubMembersResponse(
+        items=[ClubMemberItem(**member) for member in members["items"]],
+        total=members["total"],
+    )
+
+
+@router.put("/{club_id}/members/{user_id}/role", response_model=UpdateMemberRoleResponse)
+def update_member_role(
+    club_id: int,
+    user_id: int,
+    data: UpdateMemberRoleRequest,
+    session: Session = Depends(get_session),
+):
+    """
+    更新社团成员角色
+
+    - 修改成员在社团中的角色
+    """
+    user_repo = UserAccountRepository()
+    role_repo = RoleRepository()
+    user_role_repo = UserRoleRepository()
+
+    # 检查社团是否存在
+    club = club_repo.get(session, club_id)
+    if not club or club.is_deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="社团不存在",
+        )
+
+    # 检查用户是否存在
+    user = user_repo.get(session, user_id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="用户不存在",
+        )
+
+    # 检查角色是否存在
+    role = role_repo.get(session, data.role_id)
+    if not role:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="角色不存在",
+        )
+
+    # 检查用户是否是该社团成员
+    existing = user_role_repo.get_by_user_role_club(
+        session,
+        user_id=user_id,
+        role_id=data.role_id,
+        club_id=club_id,
+    )
+    if not existing:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="用户不是该社团成员",
+        )
+
+    # 更新角色
+    user_role_repo.update_user_role(
+        session,
+        user_role=existing,
+        new_role_id=data.role_id,
+        new_club_id=data.club_id,
+    )
+
+    return UpdateMemberRoleResponse(detail="成员角色已更新")
+
+
+@router.delete("/{club_id}/members/{user_id}", response_model=RemoveMemberResponse)
+def remove_member(
+    club_id: int,
+    user_id: int,
+    data: RemoveMemberRequest,
+    session: Session = Depends(get_session),
+):
+    """
+    移除社团成员
+
+    - 将成员从社团中移除（软删除 user_role 记录）
+    """
+    user_repo = UserAccountRepository()
+    user_role_repo = UserRoleRepository()
+
+    # 检查社团是否存在
+    club = club_repo.get(session, club_id)
+    if not club or club.is_deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="社团不存在",
+        )
+
+    # 检查用户是否存在
+    user = user_repo.get(session, user_id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="用户不存在",
+        )
+
+    # 获取用户在该社团的所有角色
+    user_roles = user_role_repo.get_by_user_and_club(
+        session,
+        user_id=user_id,
+        club_id=club_id,
+    )
+
+    if not user_roles:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="用户不是该社团成员",
+        )
+
+    # 移除所有角色
+    for user_role in user_roles:
+        user_role_repo.soft_delete(session, user_role)
+
+    return RemoveMemberResponse(detail="成员已移除")
+
+
+@router.get("/{club_id}/stats", response_model=ClubStatsResponse)
+def get_club_stats(
+    club_id: int,
+    session: Session = Depends(get_session),
+):
+    """
+    获取社团统计数据
+
+    - 成员总数
+    - 活跃岗位数
+    - 活跃招新场次数
+    - 报名总数
+    - 面试总数
+    - 待审核报名数
+    - 即将到来的面试数
+    """
+    # 检查社团是否存在
+    club = club_repo.get(session, club_id)
+    if not club or club.is_deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="社团不存在",
+        )
+
+    # 获取统计数据
+    stats = club_repo.get_club_stats(session, club_id)
+
+    return ClubStatsResponse(**stats)

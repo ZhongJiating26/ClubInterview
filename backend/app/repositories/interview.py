@@ -103,6 +103,123 @@ class InterviewCandidateRepository(BaseRepository[InterviewCandidate]):
         result = session.execute(stmt)
         return list(result.scalars().all())
 
+    # ============ 面试功能增强 ============
+
+    def get_by_user(
+        self,
+        session: Session,
+        user_id: int,
+    ) -> List[InterviewCandidate]:
+        """获取某用户的所有候选人排期（别名）"""
+        return self.get_by_candidate_user(session, user_id)
+
+    def get_session_stats(
+        self,
+        session: Session,
+        session_id: int,
+    ) -> dict:
+        """
+        获取场次的统计数据
+
+        Returns:
+            包含统计数据的字典
+        """
+        from sqlmodel import func
+
+        # 总候选人数量
+        total_stmt = (
+            select(func.count())
+            .select_from(InterviewCandidate)
+            .where(InterviewCandidate.session_id == session_id)
+            .where(InterviewCandidate.is_deleted == 0)
+        )
+        total_candidates = session.execute(total_stmt).scalar() or 0
+
+        # 已完成数量
+        completed_stmt = (
+            select(func.count())
+            .select_from(InterviewCandidate)
+            .where(InterviewCandidate.session_id == session_id)
+            .where(InterviewCandidate.status == "COMPLETED")
+            .where(InterviewCandidate.is_deleted == 0)
+        )
+        completed_candidates = session.execute(completed_stmt).scalar() or 0
+
+        # 待定数量
+        pending_stmt = (
+            select(func.count())
+            .select_from(InterviewCandidate)
+            .where(InterviewCandidate.session_id == session_id)
+            .where(InterviewCandidate.status == "PENDING")
+            .where(InterviewCandidate.is_deleted == 0)
+        )
+        pending_candidates = session.execute(pending_stmt).scalar() or 0
+
+        # 取消数量
+        cancelled_stmt = (
+            select(func.count())
+            .select_from(InterviewCandidate)
+            .where(InterviewCandidate.session_id == session_id)
+            .where(InterviewCandidate.status == "CANCELLED")
+            .where(InterviewCandidate.is_deleted == 0)
+        )
+        cancelled_candidates = session.execute(cancelled_stmt).scalar() or 0
+
+        # 计算平均分
+        avg_score_stmt = (
+            select(func.avg(InterviewCandidate.final_score))
+            .select_from(InterviewCandidate)
+            .where(InterviewCandidate.session_id == session_id)
+            .where(InterviewCandidate.final_score.is_not(None))
+            .where(InterviewCandidate.is_deleted == 0)
+        )
+        avg_score = session.execute(avg_score_stmt).scalar()
+
+        # 录取结果统计
+        from app.models.admission_result import AdmissionResult
+
+        # 通过 JOIN interview_candidate 来获取结果
+        pass_count_stmt = (
+            select(func.count())
+            .select_from(AdmissionResult)
+            .join(InterviewCandidate, AdmissionResult.interview_candidate_id == InterviewCandidate.id)
+            .where(InterviewCandidate.session_id == session_id)
+            .where(AdmissionResult.result == "PASS")
+            .where(AdmissionResult.is_deleted == 0)
+        )
+        pass_count = session.execute(pass_count_stmt).scalar() or 0
+
+        reject_count_stmt = (
+            select(func.count())
+            .select_from(AdmissionResult)
+            .join(InterviewCandidate, AdmissionResult.interview_candidate_id == InterviewCandidate.id)
+            .where(InterviewCandidate.session_id == session_id)
+            .where(AdmissionResult.result == "REJECT")
+            .where(AdmissionResult.is_deleted == 0)
+        )
+        reject_count = session.execute(reject_count_stmt).scalar() or 0
+
+        waitlist_count_stmt = (
+            select(func.count())
+            .select_from(AdmissionResult)
+            .join(InterviewCandidate, AdmissionResult.interview_candidate_id == InterviewCandidate.id)
+            .where(InterviewCandidate.session_id == session_id)
+            .where(AdmissionResult.result == "WAITLIST")
+            .where(AdmissionResult.is_deleted == 0)
+        )
+        waitlist_count = session.execute(waitlist_count_stmt).scalar() or 0
+
+        return {
+            "total_candidates": total_candidates,
+            "completed_candidates": completed_candidates,
+            "pending_candidates": pending_candidates,
+            "cancelled_candidates": cancelled_candidates,
+            "average_score": round(avg_score, 2) if avg_score else None,
+            "pass_count": pass_count,
+            "reject_count": reject_count,
+            "waitlist_count": waitlist_count,
+        }
+
 
 class InterviewRecordRepository(BaseRepository[InterviewRecord]):
     """面试记录仓储"""
@@ -170,6 +287,23 @@ class InterviewRecordRepository(BaseRepository[InterviewRecord]):
             select(InterviewRecord)
             .where(InterviewRecord.session_id == session_id)
             .where(InterviewRecord.interviewer_id == interviewer_id)
+            .where(InterviewRecord.is_deleted == 0)
+        )
+        stmt = stmt.order_by(InterviewRecord.created_at)
+        result = session.execute(stmt)
+        return list(result.scalars().all())
+
+    # ============ 面试功能增强 ============
+
+    def get_by_session(
+        self,
+        session: Session,
+        session_id: int,
+    ) -> List[InterviewRecord]:
+        """获取某场次的所有面试记录"""
+        stmt = (
+            select(InterviewRecord)
+            .where(InterviewRecord.session_id == session_id)
             .where(InterviewRecord.is_deleted == 0)
         )
         stmt = stmt.order_by(InterviewRecord.created_at)

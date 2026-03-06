@@ -162,3 +162,85 @@ class SignupAuditResponse(BaseModel):
     detail: str
     signup_id: int
     new_status: str
+
+
+# ============ 报名功能增强相关 ============
+
+class UploadSignupAttachmentRequest(BaseModel):
+    """上传报名附件请求"""
+    file_type: str = Field(..., description="附件类型：PDF / IMG / DOC / OTHER")
+    file_name: str = Field(..., description="文件名")
+
+
+class UploadSignupAttachmentResponse(BaseModel):
+    """上传报名附件响应"""
+    detail: str = "附件上传成功"
+    attachment_id: int
+    file_url: str
+
+
+class CustomFieldDefinition(BaseModel):
+    """自定义字段定义"""
+    key: str = Field(..., description="字段键名")
+    label: str = Field(..., description="字段标签")
+    field_type: str = Field(..., description="字段类型：text / number / select / checkbox / date")
+    required: bool = Field(default=False, description="是否必填")
+    options: Optional[list[str]] = Field(default=None, description="选项（select/checkbox类型）")
+    placeholder: Optional[str] = Field(default=None, description="占位符")
+    max_length: Optional[int] = Field(default=None, description="最大长度")
+
+
+class CustomFieldConfig(BaseModel):
+    """自定义字段配置"""
+    recruitment_session_id: int = Field(..., description="招新场次ID")
+    fields: list[CustomFieldDefinition] = Field(..., description="自定义字段列表")
+
+
+class SetCustomFieldsRequest(BaseModel):
+    """设置自定义字段请求"""
+    recruitment_session_id: int = Field(..., description="招新场次ID")
+    fields: list[CustomFieldDefinition] = Field(..., description="自定义字段列表")
+
+
+class SetCustomFieldsResponse(BaseModel):
+    """设置自定义字段响应"""
+    detail: str = "自定义字段设置成功"
+
+
+class GetCustomFieldsResponse(BaseModel):
+    """获取自定义字段响应"""
+    recruitment_session_id: int
+    fields: list[CustomFieldDefinition]
+
+
+class SignupExportRequest(BaseModel):
+    """报名数据导出请求"""
+    recruitment_session_id: int = Field(..., description="招新场次ID")
+    status: Optional[str] = Field(default=None, description="状态筛选（可选）")
+    format: str = Field(default="xlsx", description="导出格式：xlsx / csv")
+
+
+class SignupExportItem(BaseModel):
+    """报名数据导出项"""
+    signup_id: int
+    user_name: Optional[str] = None
+    user_phone: str
+    user_email: Optional[str] = None
+    user_school: Optional[str] = None
+    user_major: Optional[str] = None
+    recruitment_session_name: str
+    positions: Optional[str] = None
+    self_intro: Optional[str] = None
+    custom_fields: Optional[dict] = None
+    status: str
+    audit_time: Optional[str] = None
+    audit_reason: Optional[str] = None
+    created_at: str
+
+
+class SignupExportResponse(BaseModel):
+    """报名数据导出响应"""
+    detail: str = "报名数据导出成功"
+    recruitment_session_id: int
+    total_count: int
+    data: list[SignupExportItem]

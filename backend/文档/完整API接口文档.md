@@ -120,6 +120,140 @@ Authorization: Bearer {token}
 POST /api/v1/auth/assign-role
 ```
 
+### 1.7 修改密码
+
+```
+POST /api/v1/auth/change-password
+Authorization: Bearer {token}
+```
+
+**功能说明：** 修改当前用户密码（需要验证旧密码）
+
+**请求体：**
+```json
+{
+  "old_password": "旧密码",
+  "new_password": "新密码"
+}
+```
+
+**字段说明：**
+- `old_password`: 旧密码（6-72字符）
+- `new_password`: 新密码（6-72字符，不能与旧密码相同）
+
+**响应：**
+```json
+{
+  "detail": "密码修改成功，请重新登录"
+}
+```
+
+**注意事项：**
+- 修改密码成功后，所有 Token 将失效，需要重新登录
+- 新密码不能与旧密码相同
+
+---
+
+### 1.8 忘记密码
+
+```
+POST /api/v1/auth/forgot-password
+```
+
+**功能说明：** 发送验证码到手机号（用于重置密码）
+
+**请求体：**
+```json
+{
+  "phone": "13800138000"
+}
+```
+
+**字段说明：**
+- `phone`: 已注册的手机号
+
+**响应：**
+```json
+{
+  "detail": "验证码已发送"
+}
+```
+
+**注意事项：**
+- 验证码有效期为 5 分钟
+- 仅向已注册的手机号发送验证码
+
+---
+
+### 1.9 重置密码
+
+```
+POST /api/v1/auth/reset-password
+```
+
+**功能说明：** 使用验证码重置密码
+
+**请求体：**
+```json
+{
+  "phone": "13800138000",
+  "code": "123456",
+  "new_password": "新密码"
+}
+```
+
+**字段说明：**
+- `phone`: 手机号
+- `code`: 验证码（6位数字）
+- `new_password`: 新密码（6-72字符）
+
+**响应：**
+```json
+{
+  "detail": "密码重置成功，请使用新密码登录"
+}
+```
+
+**注意事项：**
+- 验证码验证成功后，密码将被重置
+- 重置成功后可以使用新密码登录
+
+---
+
+### 1.10 注销账号
+
+```
+POST /api/v1/auth/account/delete
+Authorization: Bearer {token}
+```
+
+**功能说明：** 注销当前账号（软删除，无法恢复）
+
+**请求体：**
+```json
+{
+  "password": "当前密码",
+  "confirmation": "DELETE"
+}
+```
+
+**字段说明：**
+- `password`: 当前密码（用于验证身份）
+- `confirmation`: 确认文本，必须输入 "DELETE"
+
+**响应：**
+```json
+{
+  "detail": "账号已注销"
+}
+```
+
+**注意事项：**
+- 账号注销后无法恢复，请谨慎操作
+- 注销后所有数据将被标记为删除
+- 需要输入密码验证身份
+- 需要输入 "DELETE" 确认操作
+
 ---
 
 ## 2. 学校管理模块
@@ -191,6 +325,192 @@ GET /api/v1/clubs/{club_id}/profile-check
 ```
 POST /api/v1/clubs/{club_id}/bind-user
 ```
+
+### 3.9 获取社团列表（分页、搜索）
+
+```
+GET /api/v1/clubs
+```
+
+**功能说明：** 获取社团列表，支持分页和多种筛选条件
+
+**查询参数：**
+- `school_code`: 学校标识码（可选）
+- `status`: 社团状态（ACTIVE/INACTIVE/REVIEW，可选）
+- `category`: 社团分类（可选）
+- `keyword`: 搜索关键词（社团名称，可选）
+- `page`: 页码（默认1）
+- `page_size`: 每页数量（默认20，最大100）
+
+**响应：**
+```json
+{
+  "items": [
+    {
+      "id": 1,
+      "school_name": "武汉大学",
+      "name": "计算机协会",
+      "logo_url": "https://...",
+      "category": "技术",
+      "description": "...",
+      "status": "ACTIVE",
+      "created_at": "2026-01-01 12:00:00"
+    }
+  ],
+  "total": 100,
+  "page": 1,
+  "page_size": 20
+}
+```
+
+---
+
+### 3.10 审核社团
+
+```
+POST /api/v1/clubs/{club_id}/audit
+Authorization: Bearer {token}
+```
+
+**功能说明：** 审核社团创建申请（管理员功能）
+
+**请求体：**
+```json
+{
+  "approved": true,
+  "reason": "拒绝原因（approved=false 时必填）"
+}
+```
+
+**字段说明：**
+- `approved`: 是否通过审核
+- `reason`: 拒绝原因（approved=false 时必填）
+
+**响应：**
+```json
+{
+  "detail": "社团审核完成"
+}
+```
+
+---
+
+### 3.11 获取社团成员列表
+
+```
+GET /api/v1/clubs/{club_id}/members
+Authorization: Bearer {token}
+```
+
+**功能说明：** 获取社团所有成员及其角色
+
+**响应：**
+```json
+{
+  "items": [
+    {
+      "user_id": 1,
+      "user_name": "张三",
+      "user_phone": "13800138000",
+      "role_id": 2,
+      "role_name": "社团管理员",
+      "club_id": 1,
+      "joined_at": "2026-01-01 12:00:00"
+    }
+  ],
+  "total": 10
+}
+```
+
+---
+
+### 3.12 更新成员角色
+
+```
+PUT /api/v1/clubs/{club_id}/members/{user_id}/role
+Authorization: Bearer {token}
+```
+
+**功能说明：** 更新社团成员的角色
+
+**请求体：**
+```json
+{
+  "role_id": 3,
+  "club_id": 1
+}
+```
+
+**字段说明：**
+- `role_id`: 新角色ID
+- `club_id`: 社团ID（角色关联的社团）
+
+**响应：**
+```json
+{
+  "detail": "成员角色已更新"
+}
+```
+
+---
+
+### 3.13 移除社团成员
+
+```
+DELETE /api/v1/clubs/{club_id}/members/{user_id}
+Authorization: Bearer {token}
+```
+
+**功能说明：** 将成员从社团中移除
+
+**请求体：**
+```json
+{
+  "reason": "移除原因（可选）"
+}
+```
+
+**响应：**
+```json
+{
+  "detail": "成员已移除"
+}
+```
+
+---
+
+### 3.14 获取社团统计数据
+
+```
+GET /api/v1/clubs/{club_id}/stats
+Authorization: Bearer {token}
+```
+
+**功能说明：** 获取社团各项统计数据
+
+**响应：**
+```json
+{
+  "club_id": 1,
+  "club_name": "计算机协会",
+  "total_members": 50,
+  "active_positions": 10,
+  "active_recruitments": 2,
+  "total_applications": 100,
+  "total_interviews": 30,
+  "pending_reviews": 5,
+  "upcoming_interviews": 3
+}
+```
+
+**字段说明：**
+- `total_members`: 总成员数
+- `active_positions`: 活跃岗位数
+- `active_recruitments`: 活跃招新场次数
+- `total_applications`: 总报名数
+- `total_interviews`: 总面试数
+- `pending_reviews`: 待审核报名数
+- `upcoming_interviews`: 即将到来的面试数（未来7天）
 
 ---
 
@@ -436,6 +756,186 @@ Authorization: Bearer {token}
 
 ---
 
+### 7.10 上传报名附件
+
+```
+POST /api/v1/signup/signup/{signup_id}/attachments
+Authorization: Bearer {token}
+```
+
+**功能说明：** 为报名添加附件（简历、作品集等）
+
+**请求体：**
+```json
+{
+  "file_type": "PDF",
+  "file_name": "个人简历.pdf"
+}
+```
+
+**字段说明：**
+- `file_type`: 附件类型（PDF/IMG/DOC/OTHER）
+- `file_name`: 文件名
+
+**响应：**
+```json
+{
+  "detail": "附件上传成功",
+  "attachment_id": 1,
+  "file_url": "https://..."
+}
+```
+
+---
+
+### 7.11 删除报名附件
+
+```
+DELETE /api/v1/signup/signup/attachments/{attachment_id}
+Authorization: Bearer {token}
+```
+
+**功能说明：** 删除报名附件
+
+**响应：**
+```json
+{
+  "detail": "附件已删除"
+}
+```
+
+---
+
+### 7.12 设置报名自定义字段
+
+```
+POST /api/v1/signup/recruitment/{recruitment_session_id}/custom-fields
+Authorization: Bearer {token}
+```
+
+**功能说明：** 为招新场次配置自定义报名字段（社团管理员）
+
+**请求体：**
+```json
+{
+  "recruitment_session_id": 1,
+  "fields": [
+    {
+      "key": "experience",
+      "label": "项目经验",
+      "field_type": "text",
+      "required": true,
+      "placeholder": "请描述您的项目经验",
+      "max_length": 500
+    },
+    {
+      "key": "skills",
+      "label": "技能特长",
+      "field_type": "select",
+      "required": false,
+      "options": ["Python", "Java", "前端", "设计", "其他"]
+    }
+  ]
+}
+```
+
+**字段类型：**
+- `text`: 文本输入
+- `number`: 数字输入
+- `select`: 下拉选择
+- `checkbox`: 多选框
+- `date`: 日期选择
+
+**响应：**
+```json
+{
+  "detail": "自定义字段设置成功"
+}
+```
+
+---
+
+### 7.13 获取报名自定义字段
+
+```
+GET /api/v1/signup/recruitment/{recruitment_session_id}/custom-fields
+```
+
+**功能说明：** 获取招新场次的自定义字段配置（用于前端渲染报名表单）
+
+**响应：**
+```json
+{
+  "recruitment_session_id": 1,
+  "fields": [
+    {
+      "key": "experience",
+      "label": "项目经验",
+      "field_type": "text",
+      "required": true,
+      "placeholder": "请描述您的项目经验",
+      "max_length": 500
+    }
+  ]
+}
+```
+
+---
+
+### 7.14 导出报名数据
+
+```
+POST /api/v1/signup/recruitment/export-signups
+Authorization: Bearer {token}
+```
+
+**功能说明：** 导出指定场次的报名数据（社团管理员）
+
+**请求体：**
+```json
+{
+  "recruitment_session_id": 1,
+  "status": "APPROVED",
+  "format": "xlsx"
+}
+```
+
+**字段说明：**
+- `recruitment_session_id`: 招新场次ID
+- `status`: 状态筛选（可选）
+- `format`: 导出格式（xlsx/csv）
+
+**响应：**
+```json
+{
+  "detail": "报名数据导出成功",
+  "recruitment_session_id": 1,
+  "total_count": 10,
+  "data": [
+    {
+      "signup_id": 1,
+      "user_name": "张三",
+      "user_phone": "13800138000",
+      "user_email": "example@email.com",
+      "user_school": "武汉大学",
+      "user_major": "计算机科学",
+      "recruitment_session_name": "2024春季招新",
+      "positions": "技术部/后端开发",
+      "self_intro": "我对编程充满热情...",
+      "custom_fields": {
+        "experience": "有过项目经验"
+      },
+      "status": "APPROVED",
+      "audit_time": "2026-03-05 10:00:00",
+      "audit_reason": null,
+      "created_at": "2026-03-01 15:30:00"
+    }
+  ]
+}
+```
+
+---
+
 ## 8. 面试管理模块
 
 ### 8.1 面试场次管理
@@ -673,6 +1173,188 @@ Authorization: Bearer {token}
 GET /api/v1/interview/my-tasks?club_id={club_id}
 Authorization: Bearer {token}
 ```
+
+---
+
+### 8.8 面试功能增强
+
+#### 8.8.1 批量分配候选人给面试官
+
+```
+POST /api/v1/interview/sessions/{session_id}/batch-assign
+Authorization: Bearer {token}
+```
+
+**功能说明：** 将多个候选人批量分配给多个面试官
+
+**请求体：**
+```json
+{
+  "candidate_ids": [1, 2, 3],
+  "interviewer_ids": [10, 20]
+}
+```
+
+**字段说明：**
+- `candidate_ids`: 候选人ID列表
+- `interviewer_ids`: 面试官 user_role ID列表
+
+**响应：**
+```json
+{
+  "detail": "候选人分配完成",
+  "assigned_count": 2,
+  "conflict_count": 1,
+  "conflicts": [
+    {
+      "candidate_id": 1,
+      "interviewer_id": 10,
+      "interviewer_name": "张三",
+      "conflict_session": "第二场面试"
+    }
+  ]
+}
+```
+
+---
+
+#### 8.8.2 检测面试时间冲突
+
+```
+POST /api/v1/interview/sessions/check-conflict
+Authorization: Bearer {token}
+```
+
+**功能说明：** 检测指定时间段内面试官或候选人的时间冲突
+
+**请求体：**
+```json
+{
+  "start_time": "2026-03-15T10:00:00",
+  "end_time": "2026-03-15T12:00:00",
+  "exclude_session_id": 5,
+  "interviewer_ids": [10, 20],
+  "candidate_user_ids": [100, 200]
+}
+```
+
+**字段说明：**
+- `start_time`: 开始时间
+- `end_time`: 结束时间
+- `exclude_session_id`: 排除的场次ID（编辑时使用）
+- `interviewer_ids`: 面试官ID列表（可选）
+- `candidate_user_ids`: 候选人用户ID列表（可选）
+
+**响应：**
+```json
+{
+  "has_conflict": true,
+  "conflicts": [
+    {
+      "type": "INTERVIEWER",
+      "name": "张三",
+      "session_name": "第二场面试",
+      "conflict_time": "2026-03-15 09:00 - 2026-03-15 11:00"
+    }
+  ]
+}
+```
+
+**冲突类型：**
+- `INTERVIEWER`: 面试官时间冲突
+- `CANDIDATE`: 候选人时间冲突
+
+---
+
+#### 8.8.3 发送面试提醒
+
+```
+POST /api/v1/interview/candidates/{candidate_id}/send-reminder
+Authorization: Bearer {token}
+```
+
+**功能说明：** 向候选人发送面试提醒通知
+
+**响应：**
+```json
+{
+  "detail": "面试提醒已发送"
+}
+```
+
+**通知内容包含：**
+- 面试时间
+- 面试地点
+- 相关说明
+
+---
+
+#### 8.8.4 导出面试记录
+
+```
+POST /api/v1/interview/sessions/{session_id}/export-records
+Authorization: Bearer {token}
+```
+
+**功能说明：** 导出指定场次的面试记录
+
+**请求体：**
+```json
+{
+  "format": "xlsx"
+}
+```
+
+**字段说明：**
+- `format`: 导出格式（xlsx/csv）
+
+**响应：**
+```json
+{
+  "message": "面试记录导出成功",
+  "session_id": 1,
+  "session_name": "第一轮面试",
+  "total_records": 10,
+  "data": [...]
+}
+```
+
+---
+
+#### 8.8.5 获取面试场次统计
+
+```
+GET /api/v1/interview/sessions/{session_id}/stats
+Authorization: Bearer {token}
+```
+
+**功能说明：** 获取面试场次的详细统计数据
+
+**响应：**
+```json
+{
+  "session_id": 1,
+  "session_name": "第一轮面试",
+  "total_candidates": 30,
+  "completed_candidates": 20,
+  "pending_candidates": 8,
+  "cancelled_candidates": 2,
+  "average_score": 85.5,
+  "pass_count": 15,
+  "reject_count": 4,
+  "waitlist_count": 1
+}
+```
+
+**统计字段说明：**
+- `total_candidates`: 候选人总数
+- `completed_candidates`: 已完成面试数
+- `pending_candidates`: 待面试数
+- `cancelled_candidates`: 取消面试数
+- `average_score`: 平均得分
+- `pass_count`: 录用人数
+- `reject_count`: 拒绝人数
+- `waitlist_count`: 候补人数
 
 ---
 

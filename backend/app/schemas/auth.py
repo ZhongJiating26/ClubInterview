@@ -1,5 +1,25 @@
-from pydantic import BaseModel, Field
-from typing import Optional, List
+from pydantic import BaseModel, Field, field_validator
+from typing import Optional, List, Literal
+
+
+# ============ 登录相关 ============
+
+class LoginRequest(BaseModel):
+    """登录请求"""
+    phone: str = Field(
+        ...,
+        min_length=11,
+        max_length=11,
+        pattern=r"^1[3-9]\d{9}$",
+        description="手机号（11位，1开头，第二位3-9）"
+    )
+    password: str = Field(..., min_length=6, max_length=72, description="密码")
+
+
+class LoginResponse(BaseModel):
+    """登录响应"""
+    access_token: str
+    token_type: str = "bearer"
 
 
 # ============ 用户角色相关 ============
@@ -61,8 +81,17 @@ class AuthMeResponse(BaseModel):
 
 class SendCodeRequest(BaseModel):
     """发送验证码请求"""
-    phone: str = Field(..., min_length=6, max_length=20, description="手机号")
-    scene: str = Field(..., description="场景：REGISTER / LOGIN")
+    phone: str = Field(
+        ...,
+        min_length=11,
+        max_length=11,
+        pattern=r"^1[3-9]\d{9}$",
+        description="手机号（11位，1开头，第二位3-9）"
+    )
+    scene: Literal["REGISTER", "LOGIN"] = Field(
+        ...,
+        description="场景：REGISTER（注册） / LOGIN（登录）"
+    )
 
 
 class SendCodeResponse(BaseModel):
@@ -95,5 +124,69 @@ class InitAccountResponse(BaseModel):
 
 class RegisterRequest(BaseModel):
     """注册请求（仅手机号+验证码，密码等在初始化接口填写）"""
-    phone: str = Field(..., min_length=6, max_length=20, description="手机号")
+    phone: str = Field(
+        ...,
+        min_length=11,
+        max_length=11,
+        pattern=r"^1[3-9]\d{9}$",
+        description="手机号（11位，1开头，第二位3-9）"
+    )
     code: str = Field(..., min_length=6, max_length=6, description="6位验证码")
+
+
+# ============ 密码管理相关 ============
+
+class ChangePasswordRequest(BaseModel):
+    """修改密码请求"""
+    old_password: str = Field(..., min_length=6, max_length=72, description="旧密码")
+    new_password: str = Field(..., min_length=6, max_length=72, description="新密码")
+
+
+class ChangePasswordResponse(BaseModel):
+    """修改密码响应"""
+    detail: str = "密码修改成功，请重新登录"
+
+
+class ForgotPasswordRequest(BaseModel):
+    """忘记密码请求（发送验证码）"""
+    phone: str = Field(
+        ...,
+        min_length=11,
+        max_length=11,
+        pattern=r"^1[3-9]\d{9}$",
+        description="手机号（11位，1开头，第二位3-9）"
+    )
+
+
+class ForgotPasswordResponse(BaseModel):
+    """忘记密码响应"""
+    detail: str = "验证码已发送"
+
+
+class ResetPasswordRequest(BaseModel):
+    """重置密码请求"""
+    phone: str = Field(
+        ...,
+        min_length=11,
+        max_length=11,
+        pattern=r"^1[3-9]\d{9}$",
+        description="手机号（11位，1开头，第二位3-9）"
+    )
+    code: str = Field(..., min_length=6, max_length=6, description="验证码")
+    new_password: str = Field(..., min_length=6, max_length=72, description="新密码")
+
+
+class ResetPasswordResponse(BaseModel):
+    """重置密码响应"""
+    detail: str = "密码重置成功，请使用新密码登录"
+
+
+class DeleteAccountRequest(BaseModel):
+    """注销账号请求"""
+    password: str = Field(..., min_length=6, max_length=72, description="密码（需要验证身份）")
+    confirmation: str = Field(..., description="确认文本，需要输入 'DELETE' 确认注销")
+
+
+class DeleteAccountResponse(BaseModel):
+    """注销账号响应"""
+    detail: str = "账号已注销"

@@ -100,3 +100,97 @@ class ClubDetailResponse(BaseModel):
 
     # 招新场次列表
     recruitment_sessions: list[dict] = []
+
+
+# ============ 社团管理增强相关 ============
+
+class ClubListRequest(BaseModel):
+    """社团列表查询请求"""
+    school_code: Optional[str] = Field(default=None, description="学校标识码")
+    status: Optional[str] = Field(default=None, description="社团状态（ACTIVE/INACTIVE/REVIEW）")
+    category: Optional[str] = Field(default=None, description="社团分类")
+    keyword: Optional[str] = Field(default=None, description="搜索关键词（社团名称）")
+    page: int = Field(default=1, ge=1, description="页码")
+    page_size: int = Field(default=20, ge=1, le=100, description="每页数量")
+
+
+class ClubListItem(BaseModel):
+    """社团列表项"""
+    id: int
+    school_name: str
+    name: str
+    logo_url: Optional[str] = None
+    category: Optional[str] = None
+    description: Optional[str] = None
+    status: str
+    created_at: str
+
+
+class ClubListResponse(BaseModel):
+    """社团列表响应"""
+    items: list[ClubListItem]
+    total: int
+    page: int
+    page_size: int
+
+
+class AuditClubRequest(BaseModel):
+    """社团审核请求"""
+    approved: bool = Field(..., description="是否通过审核")
+    reason: Optional[str] = Field(default=None, description="拒绝原因（approved=False 时必填）")
+
+
+class AuditClubResponse(BaseModel):
+    """社团审核响应"""
+    detail: str = "社团审核完成"
+
+
+class ClubMemberItem(BaseModel):
+    """社团成员列表项"""
+    user_id: int
+    user_name: str
+    user_phone: str
+    role_id: int
+    role_name: str
+    club_id: int
+    joined_at: str
+
+
+class ClubMembersResponse(BaseModel):
+    """社团成员列表响应"""
+    items: list[ClubMemberItem]
+    total: int
+
+
+class UpdateMemberRoleRequest(BaseModel):
+    """更新成员角色请求"""
+    role_id: int = Field(..., description="新角色ID")
+    club_id: Optional[int] = Field(default=None, description="社团ID（角色关联的社团）")
+
+
+class UpdateMemberRoleResponse(BaseModel):
+    """更新成员角色响应"""
+    detail: str = "成员角色已更新"
+
+
+class RemoveMemberRequest(BaseModel):
+    """移除成员请求"""
+    reason: Optional[str] = Field(default=None, description="移除原因")
+
+
+class RemoveMemberResponse(BaseModel):
+    """移除成员响应"""
+    detail: str = "成员已移除"
+
+
+class ClubStatsResponse(BaseModel):
+    """社团统计数据响应"""
+    club_id: int
+    club_name: str
+    total_members: int  # 总成员数
+    active_positions: int  # 活跃岗位数
+    active_recruitments: int  # 活跃招新场次数
+    total_applications: int  # 总报名数
+    total_interviews: int  # 总面试数
+    pending_reviews: int  # 待审核报名数
+    upcoming_interviews: int  # 即将到来的面试数

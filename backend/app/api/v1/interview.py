@@ -47,6 +47,11 @@ from app.schemas.interview import (
     ScoreItemDetailResponse,
     SetScoreTemplateRequest,
     SetScoreTemplateCustomItem,
+    BatchAssignCandidatesRequest, BatchAssignCandidatesResponse,
+    TimeConflictCheckRequest, TimeConflictCheckResponse, TimeConflictInfo,
+    SendInterviewReminderRequest, SendInterviewReminderResponse,
+    ExportInterviewRecordsRequest, InterviewRecordExportItem,
+    InterviewSessionStatsResponse,
 )
 
 
@@ -1407,3 +1412,403 @@ def set_session_score_template(
     }
 
 
+# ============ 面试功能增强 ============
+
+
+@router.post("/sessions/{session_id}/batch-assign", response_model=BatchAssignCandidatesResponse)
+def batch_assign_candidates(
+    session_id: int,
+    data: BatchAssignCandidatesRequest,
+    db_session: Session = Depends(get_session),
+    current_user: UserAccount = Depends(get_current_user),
+):
+    """
+    批量分配候选人给面试官
+
+    - 将多个候选人分配给多个面试官
+    - 自动检测并跳过有冲突的分配
+    - 返回分配结果和冲突详情
+    """
+    candidate_repo = InterviewCandidateRepository()
+    interviewer_repo = InterviewSessionInterviewerRepository()
+
+    # 检查场次是否存在
+    session_obj = interview_session_repo.get(db_session, session_id)
+    if not session_obj or session_obj.is_deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="面试场次不存在",
+        )
+
+    assigned_count = 0
+    conflict_count = 0
+    conflicts = []
+
+    # 为每个候选人分配面试官
+    for candidate_id in data.candidate_ids:
+        candidate = candidate_repo.get(db_session, candidate_id)
+        if not candidate or candidate.is_deleted:
+            continue
+
+        # 检查是否有时间冲突
+        has_conflict = False
+        for interviewer_id in data.interviewer_ids:
+            # 获取面试官的所有场次
+            interviewer_sessions = interviewer_repo.get_by_interviewer(db_session, interviewer_id)
+            for session_interviewer in interviewer_sessions:
+                other_session = interview_session_repo.get(db_session, session_interviewer.session_id)
+                if other_session and not other_session.is_deleted:
+                    # 检查时间是否重叠
+                    if _is_time_overlap(
+                        session_obj.start_time, session_obj.end_time,
+                        other_session.start_time, other_session.end_time
+                    ):
+                        has_conflict = True
+                        # 获取面试官信息
+                        from app.repositories.user_role import UserRoleRepository
+                        from app.repositories.user_account import UserAccountRepository
+                        user_role_repo = UserRoleRepository()
+                        user_repo = UserAccountRepository()
+
+                        user_role = user_role_repo.get(db_session, interviewer_id)
+                        if user_role:
+                            user = user_repo.get(db_session, user_role.user_id)
+                            conflicts.append({
+                                "candidate_id": candidate_id,
+                                "interviewer_id": interviewer_id,
+                                "interviewer_name": user.name if user else "未知",
+                                "conflict_session": other_session.name,
+                            })
+                        break
+
+        if has_conflict:
+            conflict_count += 1
+            continue
+
+        # 分配面试官（通过创建面试记录来实现）
+        for interviewer_id in data.interviewer_ids:
+            interview_record = InterviewRecord(
+                session_id=session_id,
+                signup_session_id=candidate.signup_session_id,
+                candidate_user_id=candidate.candidate_user_id,
+                interviewer_id=interviewer_id,
+                status="PENDING",
+            )
+            db_session.add(interview_record)
+
+        assigned_count += 1
+
+    db_session.commit()
+
+    return BatchAssignCandidatesResponse(
+        detail="候选人分配完成",
+        assigned_count=assigned_count,
+        conflict_count=conflict_count,
+        conflicts=conflicts,
+    )
+
+
+@router.post("/sessions/check-conflict", response_model=TimeConflictCheckResponse)
+def check_time_conflict(
+    data: TimeConflictCheckRequest,
+    db_session: Session = Depends(get_session),
+):
+    """
+    检测面试时间冲突
+
+    - 检测指定时间段内面试官或候选人的时间冲突
+    - 支持排除指定场次ID（编辑时使用）
+    - 返回所有冲突详情
+    """
+    interview_session_repo = InterviewSessionRepository()
+    interviewer_repo = InterviewSessionInterviewerRepository()
+    candidate_repo = InterviewCandidateRepository()
+
+    conflicts = []
+
+    # 检测面试官冲突
+    if data.interviewer_ids:
+        for interviewer_id in data.interviewer_ids:
+            # 获取该面试官的所有场次
+            interviewer_sessions = interviewer_repo.get_by_interviewer(db_session, interviewer_id)
+            for session_interviewer in interviewer_sessions:
+                # 排除当前场次
+                if session_interviewer.session_id == data.exclude_session_id:
+                    continue
+
+                session_obj = interview_session_repo.get(db_session, session_interviewer.session_id)
+                if session_obj and not session_obj.is_deleted:
+                    # 检查时间是否重叠
+                    if _is_time_overlap(
+                        data.start_time, data.end_time,
+                        session_obj.start_time, session_obj.end_time
+                    ):
+                        # 获取面试官信息
+                        from app.repositories.user_role import UserRoleRepository
+                        from app.repositories.user_account import UserAccountRepository
+                        user_role_repo = UserRoleRepository()
+                        user_repo = UserAccountRepository()
+
+                        user_role = user_role_repo.get(db_session, interviewer_id)
+                        if user_role:
+                            user = user_repo.get(db_session, user_role.user_id)
+                            conflicts.append(TimeConflictInfo(
+                                type="INTERVIEWER",
+                                name=user.name if user else "未知",
+                                session_name=session_obj.name,
+                                conflict_time=f"{session_obj.start_time.strftime('%Y-%m-%d %H:%M')} - {session_obj.end_time.strftime('%Y-%m-%d %H:%M')}",
+                            ))
+
+    # 检测候选人冲突
+    if data.candidate_user_ids:
+        for candidate_user_id in data.candidate_user_ids:
+            # 获取该候选人的所有排期
+            candidates = candidate_repo.get_by_user(db_session, candidate_user_id)
+            for candidate in candidates:
+                # 排除当前场次
+                if candidate.session_id == data.exclude_session_id:
+                    continue
+
+                session_obj = interview_session_repo.get(db_session, candidate.session_id)
+                if session_obj and not session_obj.is_deleted and candidate.planned_start_time and candidate.planned_end_time:
+                    # 检查时间是否重叠
+                    if _is_time_overlap(
+                        data.start_time, data.end_time,
+                        candidate.planned_start_time, candidate.planned_end_time
+                    ):
+                        # 获取候选人信息
+                        from app.repositories.user_account import UserAccountRepository
+                        user_repo = UserAccountRepository()
+
+                        user = user_repo.get(db_session, candidate_user_id)
+                        conflicts.append(TimeConflictInfo(
+                            type="CANDIDATE",
+                            name=user.name if user else "未知",
+                            session_name=session_obj.name,
+                            conflict_time=f"{candidate.planned_start_time.strftime('%Y-%m-%d %H:%M')} - {candidate.planned_end_time.strftime('%Y-%m-%d %H:%M')}",
+                        ))
+
+    return TimeConflictCheckResponse(
+        has_conflict=len(conflicts) > 0,
+        conflicts=conflicts,
+    )
+
+
+@router.post("/candidates/{candidate_id}/send-reminder", response_model=SendInterviewReminderResponse)
+def send_interview_reminder(
+    candidate_id: int,
+    data: Optional[SendInterviewReminderRequest] = None,
+    db_session: Session = Depends(get_session),
+    current_user: UserAccount = Depends(get_current_user),
+):
+    """
+    发送面试提醒
+
+    - 向候选人发送面试提醒通知
+    - 包含面试时间、地点等信息
+    - 支持站内通知、邮件、短信（TODO）
+    """
+    candidate_repo = InterviewCandidateRepository()
+    interview_session_repo = InterviewSessionRepository()
+
+    # 检查候选人是否存在
+    candidate = candidate_repo.get(db_session, candidate_id)
+    if not candidate or candidate.is_deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="候选人不存在",
+        )
+
+    # 获取面试场次信息
+    session_obj = interview_session_repo.get(db_session, candidate.session_id)
+    if not session_obj or session_obj.is_deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="面试场次不存在",
+        )
+
+    # 获取候选人信息
+    from app.repositories.user_account import UserAccountRepository
+    user_repo = UserAccountRepository()
+    user = user_repo.get(db_session, candidate.candidate_user_id)
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="用户不存在",
+        )
+
+    # 创建站内通知
+    from app.models.notification import Notification
+    from app.models.notification_user import NotificationUser
+    from app.repositories.notification import NotificationRepository
+
+    notification_repo = NotificationRepository()
+
+    notification = Notification(
+        title="面试提醒",
+        content=f"您有面试安排：\n"
+                f"时间：{candidate.planned_start_time.strftime('%Y-%m-%d %H:%M')} - {candidate.planned_end_time.strftime('%H:%M')}\n"
+                f"地点：{session_obj.place or '待定'}\n"
+                f"请准时参加。",
+        type="INTERVIEW_REMINDER",
+    )
+    notification_repo.create(db_session, notification)
+
+    # 关联到用户
+    notification_user = NotificationUser(
+        notification_id=notification.id,
+        user_id=candidate.candidate_user_id,
+        read_status=0,
+    )
+    db_session.add(notification_user)
+    db_session.commit()
+
+    # TODO: 后续可添加邮件和短信通知
+
+    return SendInterviewReminderResponse(detail="面试提醒已发送")
+
+
+@router.post("/sessions/{session_id}/export-records")
+def export_interview_records(
+    session_id: int,
+    data: ExportInterviewRecordsRequest,
+    db_session: Session = Depends(get_session),
+    current_user: UserAccount = Depends(get_current_user),
+):
+    """
+    导出面试记录
+
+    - 导出指定场次的面试记录
+    - 支持 xlsx 和 csv 格式
+    - 返回文件下载链接
+    """
+    interview_session_repo = InterviewSessionRepository()
+    record_repo = InterviewRecordRepository()
+
+    # 检查场次是否存在
+    session_obj = interview_session_repo.get(db_session, session_id)
+    if not session_obj or session_obj.is_deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="面试场次不存在",
+        )
+
+    # 获取该场次的所有面试记录
+    records = record_repo.get_by_session(db_session, session_id)
+
+    # 准备导出数据
+    export_items = []
+    for record in records:
+        # 获取候选人信息
+        from app.repositories.user_account import UserAccountRepository
+        from app.repositories.signup_item import SignupItemRepository
+        from app.repositories.department import DepartmentRepository
+        from app.repositories.club_position import ClubPositionRepository
+
+        user_repo = UserAccountRepository()
+        signup_item_repo = SignupItemRepository()
+        dept_repo = DepartmentRepository()
+        position_repo = ClubPositionRepository()
+
+        candidate_user = user_repo.get(db_session, record.candidate_user_id)
+        interviewer_user = user_repo.get(db_session, record.interviewer_id)
+
+        # 获取报名信息
+        department_name = None
+        position_name = None
+        if record.signup_session_id:
+            signup_items = signup_item_repo.get_by_signup_session(db_session, record.signup_session_id)
+            if signup_items:
+                dept = dept_repo.get(db_session, signup_items[0].department_id)
+                position = position_repo.get(db_session, signup_items[0].position_id)
+                department_name = dept.name if dept else None
+                position_name = position.name if position else None
+
+        export_items.append({
+            "candidate_name": candidate_user.name if candidate_user else None,
+            "candidate_phone": candidate_user.phone if candidate_user else None,
+            "department_name": department_name,
+            "position_name": position_name,
+            "interviewer_name": interviewer_user.name if interviewer_user else None,
+            "planned_start_time": record.planned_start_time.strftime('%Y-%m-%d %H:%M') if record.planned_start_time else None,
+            "planned_end_time": record.planned_end_time.strftime('%Y-%m-%d %H:%M') if record.planned_end_time else None,
+            "actual_start_time": record.actual_start_time.strftime('%Y-%m-%d %H:%M') if record.actual_start_time else None,
+            "actual_end_time": record.actual_end_time.strftime('%Y-%m-%d %H:%M') if record.actual_end_time else None,
+            "total_score": record.total_score,
+            "status": record.status,
+            "summary": record.summary,
+            "created_at": record.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+        })
+
+    # 生成Excel文件（简化版本，返回JSON数据）
+    # TODO: 实际项目中应该使用 openpyxl 或 pandas 生成真实的 Excel 文件
+
+    return {
+        "message": "面试记录导出成功",
+        "session_id": session_id,
+        "session_name": session_obj.name,
+        "total_records": len(export_items),
+        "data": export_items,
+    }
+
+
+@router.get("/sessions/{session_id}/stats", response_model=InterviewSessionStatsResponse)
+def get_session_stats(
+    session_id: int,
+    db_session: Session = Depends(get_session),
+    current_user: UserAccount = Depends(get_current_user),
+):
+    """
+    获取面试场次统计数据
+
+    - 候选人总数、完成数、待定数、取消数
+    - 平均分
+    - 录取结果统计
+    """
+    interview_session_repo = InterviewSessionRepository()
+    candidate_repo = InterviewCandidateRepository()
+
+    # 检查场次是否存在
+    session_obj = interview_session_repo.get(db_session, session_id)
+    if not session_obj or session_obj.is_deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="面试场次不存在",
+        )
+
+    # 获取统计数据
+    stats = candidate_repo.get_session_stats(db_session, session_id)
+
+    return InterviewSessionStatsResponse(
+        session_id=session_id,
+        session_name=session_obj.name,
+        **stats,
+    )
+
+
+# ============ 辅助函数 ============
+
+def _is_time_overlap(
+    start1: timedelta,
+    end1: timedelta,
+    start2: timedelta,
+    end2: timedelta,
+) -> bool:
+    """
+    检测两个时间段是否重叠
+
+    Args:
+        start1: 时间段1开始时间
+        end1: 时间段1结束时间
+        start2: 时间段2开始时间
+        end2: 时间段2结束时间
+
+    Returns:
+        是否重叠
+    """
+    # 不重叠的条件：
+    # 1. 时间段1完全在时间段2之前
+    # 2. 时间段1完全在时间段2之后
+    # 重叠是不重叠的补集
+    return not (end1 <= start2 or start1 >= end2)

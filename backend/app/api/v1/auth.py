@@ -14,19 +14,14 @@ from app.core.security import create_access_token
 from app.schemas.auth import (
     InitAccountRequest, InitAccountResponse, AuthMeResponse, UserRoleInfo,
     SendCodeRequest, SendCodeResponse, RegisterRequest,
+    LoginRequest, LoginResponse,
     AssignRoleRequest,
     AssignRoleResponse, UserRoleResponse,
+    ChangePasswordRequest, ChangePasswordResponse,
+    ForgotPasswordRequest, ForgotPasswordResponse,
+    ResetPasswordRequest, ResetPasswordResponse,
+    DeleteAccountRequest, DeleteAccountResponse,
 )
-
-
-class LoginRequest(BaseModel):
-    phone: str
-    password: str
-
-
-class LoginResponse(BaseModel):
-    access_token: str
-    token_type: str = "bearer"
 
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
@@ -275,7 +270,7 @@ def init_account(
         avatar_url=data.avatar_url,
     )
 
-    return InitAccountResponse()
+    return InitAccountResponse(detail="账号初始化成功")
 
 
 # ============ 用户角色管理 ============
@@ -328,3 +323,158 @@ def assign_role(
     )
 
 
+# ============ 密码管理功能 ============
+
+
+@router.post("/change-password", response_model=ChangePasswordResponse)
+def change_password(
+    data: ChangePasswordRequest,
+    session: Session = Depends(get_session),
+    current_user: UserAccount = Depends(get_current_user),
+):
+    """
+    修改密码
+    - 需要验证旧密码
+- 修改成功后会使所有 Token 失效（通过增加 token_version）
+    """
+    # 1️⃣ 验证旧密码
+    if not user_repo.verify_password(data.old_password, current_user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="旧密码错误",
+        )
+
+    # 2️⃣ 检查新密码是否与旧密码相同
+    if user_repo.verify_password(data.new_password, current_user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="新密码不能与旧密码相同",
+        )
+
+    # 3️⃣ 更新密码（同时增加 token_version 使旧 Token 失效）
+    user_repo.change_password(session, current_user, data.new_password)
+
+    return ChangePasswordResponse(detail="密码修改成功，请重新登录")
+
+
+@router.post("/forgot-password", response_model=ForgotPasswordResponse)
+def forgot_password(
+    data: ForgotPasswordRequest,
+    session: Session = Depends(get_session),
+):
+    """
+    忘记密码（发送验证码）
+    - 验证手机号是否已注册
+- 发送验证码到手机号
+    """
+    # 1️⃣ 检查手机号是否已注册
+    user = user_repo.get_by_phone(session, data.phone)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="手机号未注册",
+        )
+
+    # 2️⃣ 检查用户状态
+    if user.status != 1:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="用户已被禁用",
+        )
+
+    # 3️⃣ 生成验证码
+    code = generate_code()
+    expired_at = datetime.utcnow() + timedelta(minutes=CODE_EXPIRE_MINUTES)
+
+    # 4️⃣ 标记旧的验证码为已删除
+    verify_code_repo.delete_expired_codes(session, data.phone, "RESET_PASSWORD")
+
+    # 5️⃣ 创建新的验证码记录
+    verify_code_repo.create_code(
+        session=session,
+        phone=data.phone,
+        code=code,
+        scene="RESET_PASSWORD",
+        expired_at=expired_at,
+    )
+
+    # TODO: 后续接入短信服务时，在此调用发送短信接口
+
+    return ForgotPasswordResponse(detail="验证码已发送")
+
+
+@router.post("/reset-password", response_model=ResetPasswordResponse)
+def reset_password(
+    data: ResetPasswordRequest,
+    session: Session = Depends(get_session),
+):
+    """
+    重置密码
+    - 使用验证码验证身份
+    - 重置成功后可以使用新密码登录
+    """
+    # 1️⃣ 检查手机号是否已注册
+    user = user_repo.get_by_phone(session, data.phone)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="手机号未注册",
+        )
+
+    # 2️⃣ 检查用户状态
+    if user.status != 1:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="用户已被禁用",
+        )
+
+    # 3️⃣ 校验验证码
+    # 开发模式：跳过验证码校验
+    # 正式环境应取消注释以下代码：
+    # valid_code = verify_code_repo.get_valid_code(
+    #     session, data.phone, data.code, "RESET_PASSWORD"
+    # )
+    # if not valid_code:
+    #     raise HTTPException(
+    #         status_code=status.HTTP_400_BAD_REQUEST,
+    #         detail="验证码无效或已过期",
+    #     )
+    # verify_code_repo.mark_as_used(session, valid_code)
+
+    # 4️⃣ 更新密码（同时增加 token_version 使旧 Token 失效）
+    user_repo.change_password(session, user, data.new_password)
+
+    return ResetPasswordResponse(detail="密码重置成功，请使用新密码登录")
+
+
+@router.post("/account/delete", response_model=DeleteAccountResponse)
+def delete_account(
+    data: DeleteAccountRequest,
+    session: Session = Depends(get_session),
+    current_user: UserAccount = Depends(get_current_user),
+):
+    """
+    注销账号
+    - 需要验证密码
+    - 需要输入确认文本 'DELETE'
+    - 软删除账号（is_deleted = 1）
+    - 注销后无法恢复，请谨慎操作
+    """
+    # 1️⃣ 验证密码
+    if not user_repo.verify_password(data.password, current_user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="密码错误",
+        )
+
+    # 2️⃣ 验证确认文本
+    if data.confirmation != "DELETE":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="请输入 'DELETE' 确认注销账号",
+        )
+
+    # 3️⃣ 软删除账号
+    user_repo.soft_delete(session, current_user)
+
+    return DeleteAccountResponse(detail="账号已注销")

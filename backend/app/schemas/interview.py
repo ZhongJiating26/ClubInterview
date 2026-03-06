@@ -336,3 +336,89 @@ class SetScoreTemplateCustomItem(BaseModel):
     description: Optional[str] = Field(None, description="描述")
     max_score: float = Field(..., gt=0, description="满分")
     weight: int = Field(..., ge=1, description="权重")
+
+
+# ============ 面试功能增强相关 ============
+
+class BatchAssignCandidatesRequest(BaseModel):
+    """批量分配候选人请求"""
+    candidate_ids: list[int] = Field(..., min_length=1, description="候选人ID列表")
+    interviewer_ids: list[int] = Field(..., min_length=1, description="面试官user_role ID列表")
+
+
+class BatchAssignCandidatesResponse(BaseModel):
+    """批量分配候选人响应"""
+    detail: str = "候选人分配完成"
+    assigned_count: int = Field(description="成功分配的候选人数量")
+    conflict_count: int = Field(description="冲突的候选人数量")
+    conflicts: list[dict] = Field(default_factory=list, description="冲突详情")
+
+
+class TimeConflictCheckRequest(BaseModel):
+    """时间冲突检测请求"""
+    start_time: datetime = Field(..., description="开始时间")
+    end_time: datetime = Field(..., description="结束时间")
+    exclude_session_id: Optional[int] = Field(default=None, description="排除的场次ID（编辑时使用）")
+    interviewer_ids: Optional[list[int]] = Field(default=None, description="面试官ID列表")
+    candidate_user_ids: Optional[list[int]] = Field(default=None, description="候选人用户ID列表")
+
+
+class TimeConflictInfo(BaseModel):
+    """时间冲突信息"""
+    type: str = Field(..., description="冲突类型：INTERVIEWER / CANDIDATE")
+    name: str = Field(..., description="冲突对象名称")
+    session_name: str = Field(..., description="冲突的场次名称")
+    conflict_time: str = Field(..., description="冲突时间段")
+
+
+class TimeConflictCheckResponse(BaseModel):
+    """时间冲突检测响应"""
+    has_conflict: bool = Field(..., description="是否存在冲突")
+    conflicts: list[TimeConflictInfo] = Field(default_factory=list, description="冲突详情列表")
+
+
+class SendInterviewReminderRequest(BaseModel):
+    """发送面试提醒请求"""
+    candidate_id: int = Field(..., description="候选人ID")
+
+
+class SendInterviewReminderResponse(BaseModel):
+    """发送面试提醒响应"""
+    detail: str = "面试提醒已发送"
+
+
+class ExportInterviewRecordsRequest(BaseModel):
+    """导出面试记录请求"""
+    session_id: int = Field(..., description="场次ID")
+    format: str = Field(default="xlsx", description="导出格式：xlsx / csv")
+
+
+class InterviewRecordExportItem(BaseModel):
+    """面试记录导出项"""
+    candidate_name: Optional[str] = None
+    candidate_phone: Optional[str] = None
+    department_name: Optional[str] = None
+    position_name: Optional[str] = None
+    interviewer_name: Optional[str] = None
+    planned_start_time: Optional[str] = None
+    planned_end_time: Optional[str] = None
+    actual_start_time: Optional[str] = None
+    actual_end_time: Optional[str] = None
+    total_score: Optional[float] = None
+    status: str
+    summary: Optional[str] = None
+    created_at: Optional[str] = None
+
+
+class InterviewSessionStatsResponse(BaseModel):
+    """面试场次统计响应"""
+    session_id: int
+    session_name: str
+    total_candidates: int
+    completed_candidates: int
+    pending_candidates: int
+    cancelled_candidates: int
+    average_score: Optional[float] = None
+    pass_count: int
+    reject_count: int
+    waitlist_count: int

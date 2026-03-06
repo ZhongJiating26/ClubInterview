@@ -101,3 +101,56 @@ class UserRoleRepository(BaseRepository[UserRole]):
         )
         result = session.execute(stmt)
         return result.scalar_one_or_none()
+
+    # ============ 社团成员管理增强 ============
+
+    def update_user_role(
+        self,
+        session: Session,
+        user_role: UserRole,
+        new_role_id: int,
+        new_club_id: Optional[int] = None,
+    ) -> UserRole:
+        """
+        更新用户角色
+
+        Args:
+            session: 数据库会话
+            user_role: 用户角色实例
+            new_role_id: 新角色ID
+            new_club_id: 新社团ID（可选）
+
+        Returns:
+            更新后的用户角色实例
+        """
+        user_role.role_id = new_role_id
+        if new_club_id is not None:
+            user_role.club_id = new_club_id
+
+        return self.update(session, user_role, {})
+
+    def get_by_user_and_club(
+        self,
+        session: Session,
+        user_id: int,
+        club_id: int,
+    ) -> list[UserRole]:
+        """
+        获取用户在特定社团的所有角色
+
+        Args:
+            session: 数据库会话
+            user_id: 用户ID
+            club_id: 社团ID
+
+        Returns:
+            用户角色列表
+        """
+        stmt = (
+            select(UserRole)
+            .where(UserRole.user_id == user_id)
+            .where(UserRole.club_id == club_id)
+            .where(UserRole.is_deleted == 0)
+        )
+        result = session.execute(stmt)
+        return list(result.scalars().all())

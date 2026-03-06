@@ -68,6 +68,16 @@ class SignupSessionRepository(BaseRepository[SignupSession]):
         stmt = stmt.order_by(SignupSession.created_at.desc())
         return list(session.execute(stmt).scalars().all())
 
+    def get_by_recruitment_session(
+        self,
+        session: Session,
+        recruitment_session_id: int,
+    ) -> List[SignupSession]:
+        """
+        获取某招新场次的报名列表（别名）
+        """
+        return self.get_by_session(session, recruitment_session_id)
+
     def get_stats_by_session(
         self,
         session: Session,

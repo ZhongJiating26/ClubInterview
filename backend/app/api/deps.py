@@ -26,7 +26,10 @@ def get_current_user_by_token(
     token: str,
     session: Session,
 ) -> UserAccount:
-    payload = decode_access_token(token)
+    try:
+        payload = decode_access_token(token)
+    except ValueError as e:
+        raise AuthenticationError(str(e))
 
     user_id = payload.get("user_id")
     token_version = payload.get("token_version")
