@@ -123,14 +123,14 @@ vim .env
 ### 5. 启动服务
 
 ```bash
-# 开发模式（支持热重载，数据库迁移需手动执行）
+# 开发模式（支持热重载）
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
-# 生产模式（启动时自动执行数据库迁移和存储初始化）
+# 生产模式
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
 ```
 
-> **注意**：生产模式 (`APP_ENV=production`) 会在启动时自动执行 `alembic upgrade head` 和存储服务初始化。
+> **注意**：数据库结构需手动管理，不再使用 Alembic 迁移。
 
 ### 6. 访问 API 文档
 
@@ -181,7 +181,6 @@ ClubInterviewSystem-Backend/
 │   ├── repositories/           # 数据访问层
 │   ├── schemas/                # Pydantic 模型（请求/响应）
 │   └── main.py                 # 应用入口
-├── alembic/                    # 数据库迁移
 ├── tests/                      # 测试用例
 ├── scripts/                    # 脚本工具
 ├── .env.example                # 环境变量示例
@@ -366,7 +365,6 @@ pytest --cov=app tests/
 ### v2.1.0 (2026-01-21)
 
 **自动化改进**
-- 🚀 **启动时自动数据库迁移**：生产模式 (`APP_ENV=production`) 下，应用启动时自动执行 `alembic upgrade head`，确保数据库结构正确
 - 🔧 **存储服务自动初始化**：启动时自动检测并创建 RustFS bucket，无需手动预配置
 - 📖 **完善部署文档**：更新快速开始指南，详细说明配置项用途
 

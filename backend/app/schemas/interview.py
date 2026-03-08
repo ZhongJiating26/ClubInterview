@@ -422,3 +422,44 @@ class InterviewSessionStatsResponse(BaseModel):
     pass_count: int
     reject_count: int
     waitlist_count: int
+
+
+class PendingCandidateResponse(BaseModel):
+    """待筛选学生响应"""
+    signup_session_id: int
+    user_id: int
+    user_name: Optional[str] = None
+    user_phone: Optional[str] = None
+    department_id: Optional[int] = None
+    department_name: Optional[str] = None
+    position_id: int
+    position_name: Optional[str] = None
+    self_intro: Optional[str] = None
+    status: str
+    created_at: Optional[str] = None
+
+
+class ScheduledCandidateResponse(BaseModel):
+    """已安排面试学生响应"""
+    candidate_id: int
+    signup_session_id: int
+    user_id: int
+    user_name: Optional[str] = None
+    department_id: Optional[int] = None
+    department_name: Optional[str] = None
+    position_id: int
+    position_name: Optional[str] = None
+    session_id: int
+    session_name: Optional[str] = None
+    planned_start_time: Optional[str] = None
+    planned_end_time: Optional[str] = None
+    status: str
+    interviewers: list[str] = []
+
+
+class InterviewFilterResponse(BaseModel):
+    """面试筛选响应"""
+    pending_candidates: list[PendingCandidateResponse]
+    scheduled_candidates: list[ScheduledCandidateResponse]
+    total_pending: int
+    total_scheduled: int

@@ -30,6 +30,7 @@ from app.repositories.interview_session_interviewer import InterviewSessionInter
 from app.repositories.interview_session_score_item import InterviewSessionScoreItemRepository
 from app.repositories.score_template import ScoreTemplateRepository
 from app.repositories.score_item import ScoreItemRepository as ScoreItemRepo
+from app.repositories.signup_session import SignupSessionRepository
 from app.schemas.interview import (
     InterviewSessionCreate, InterviewSessionUpdate, InterviewSessionResponse, InterviewSessionListResponse,
     InterviewCandidateCreate, InterviewCandidateResponse, InterviewCandidateDetailResponse,
@@ -52,6 +53,7 @@ from app.schemas.interview import (
     SendInterviewReminderRequest, SendInterviewReminderResponse,
     ExportInterviewRecordsRequest, InterviewRecordExportItem,
     InterviewSessionStatsResponse,
+    PendingCandidateResponse, ScheduledCandidateResponse, InterviewFilterResponse,
 )
 
 
@@ -65,6 +67,7 @@ score_repo = InterviewScoreRepository()
 admission_repo = AdmissionResultRepository()
 score_template_repo = ScoreTemplateRepository()
 score_item_repo = ScoreItemRepo()
+signup_repo = SignupSessionRepository()
 
 
 # ==================== 面试场次管理 ====================
@@ -298,6 +301,149 @@ def delete_session(
 
 
 # ==================== 候选人排期管理 ====================
+
+@router.get("/filter", response_model=InterviewFilterResponse)
+def get_interview_filter(
+    recruitment_session_id: int,
+    club_id: Optional[int] = None,
+    current_user=Depends(get_current_user),
+    db_session: Session = Depends(get_session),
+):
+    """
+    获取面试筛选数据
+
+    返回待筛选学生（已通过报名但未安排面试）和已安排面试的学生列表
+    """
+    from app.models.user_account import UserAccount
+    from app.models.signup_item import SignupItem
+    from app.models.club_position import ClubPosition
+    from app.models.department import Department
+    from app.repositories.user_account import UserAccountRepository
+
+    user_repo = UserAccountRepository()
+
+    # 1. 获取已通过的报名列表
+    approved_signups = db_session.execute(
+        select(SignupSession)
+        .where(SignupSession.recruitment_session_id == recruitment_session_id)
+        .where(SignupSession.status == "APPROVED")
+        .where(SignupSession.is_deleted == 0)
+    ).scalars().all()
+
+    # 2. 获取已安排面试的学生（从所有关联的面试场次中获取候选人）
+    scheduled_candidate_user_ids = set()
+    scheduled_candidates_list = []
+
+    # 获取该招新场次关联的面试场次
+    sessions = db_session.execute(
+        select(InterviewSession)
+        .where(InterviewSession.recruitment_session_id == recruitment_session_id)
+        .where(InterviewSession.is_deleted == 0)
+    ).scalars().all()
+
+    for session in sessions:
+        # 获取该场次的候选人
+        candidates = db_session.execute(
+            select(InterviewCandidate)
+            .where(InterviewCandidate.session_id == session.id)
+            .where(InterviewCandidate.is_deleted == 0)
+        ).scalars().all()
+
+        for candidate in candidates:
+            scheduled_candidate_user_ids.add(candidate.candidate_user_id)
+
+            # 获取用户信息
+            user = user_repo.get(db_session, candidate.candidate_user_id)
+
+            # 获取报名信息和岗位部门
+            signup_item = None
+            if candidate.signup_session_id:
+                signup_item = db_session.execute(
+                    select(SignupItem)
+                    .where(SignupItem.signup_session_id == candidate.signup_session_id)
+                ).scalars().first()
+
+            position_name = None
+            department_name = None
+            if signup_item and signup_item.position_id:
+                position = db_session.get(ClubPosition, signup_item.position_id)
+                if position:
+                    position_name = position.name
+                if signup_item.department_id:
+                    dept = db_session.get(Department, signup_item.department_id)
+                    if dept:
+                        department_name = dept.name
+
+            # 获取面试官列表
+            interviewers = db_session.execute(
+                select(InterviewSessionInterviewer)
+                .where(InterviewSessionInterviewer.session_id == session.id)
+                .where(InterviewSessionInterviewer.is_deleted == 0)
+            ).scalars().all()
+
+            interviewer_names = []
+            for iv in interviewers:
+                iv_user = user_repo.get(db_session, iv.user_id)
+                if iv_user:
+                    interviewer_names.append(iv_user.name or iv_user.phone or f"面试官{iv_user.id}")
+
+            scheduled_candidates_list.append(ScheduledCandidateResponse(
+                candidate_id=candidate.id,
+                signup_session_id=candidate.signup_session_id or 0,
+                user_id=candidate.candidate_user_id,
+                user_name=user.name if user else None,
+                department_id=signup_item.department_id if signup_item else None,
+                department_name=department_name,
+                position_id=signup_item.position_id if signup_item else 0,
+                position_name=position_name,
+                session_id=session.id,
+                session_name=session.name,
+                planned_start_time=candidate.planned_start_time.isoformat() if candidate.planned_start_time else None,
+                planned_end_time=candidate.planned_end_time.isoformat() if candidate.planned_end_time else None,
+                status=candidate.status,
+                interviewers=interviewer_names,
+            ))
+
+    # 3. 过滤出待筛选学生（已通过但未安排面试）
+    pending_candidates = []
+    for signup in approved_signups:
+        if signup.user_id in scheduled_candidate_user_ids:
+            continue
+
+        # 获取用户信息
+        user = user_repo.get(db_session, signup.user_id)
+
+        # 获取报名岗位信息
+        signup_items = db_session.execute(
+            select(SignupItem)
+            .where(SignupItem.signup_session_id == signup.id)
+        ).scalars().all()
+
+        for item in signup_items:
+            position = db_session.get(ClubPosition, item.position_id) if item.position_id else None
+            department = db_session.get(Department, item.department_id) if item.department_id else None
+
+            pending_candidates.append(PendingCandidateResponse(
+                signup_session_id=signup.id,
+                user_id=signup.user_id,
+                user_name=user.name if user else None,
+                user_phone=user.phone if user else None,
+                department_id=item.department_id,
+                department_name=department.name if department else None,
+                position_id=item.position_id,
+                position_name=position.name if position else None,
+                self_intro=signup.self_intro,
+                status=signup.status,
+                created_at=signup.created_at.isoformat() if signup.created_at else None,
+            ))
+
+    return InterviewFilterResponse(
+        pending_candidates=pending_candidates,
+        scheduled_candidates=scheduled_candidates_list,
+        total_pending=len(pending_candidates),
+        total_scheduled=len(scheduled_candidates_list),
+    )
+
 
 @router.post("/sessions/{session_id}/generate-candidates", response_model=list[InterviewCandidateDetailResponse], status_code=status.HTTP_201_CREATED)
 def generate_candidates(

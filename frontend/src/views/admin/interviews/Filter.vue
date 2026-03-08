@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted, watch, computed } from 'vue'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -20,116 +20,138 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { CheckCircle, Users, Calendar } from 'lucide-vue-next'
+import { getRecruitmentSessions, type RecruitmentSession } from '@/api/modules/recruitment'
+import { getInterviewFilter, type PendingCandidate, type ScheduledCandidate } from '@/api/modules/interview'
+import { useUserStore } from '@/stores/user'
 
-// 模拟数据 - 待筛选学生
-const students = ref([
-  {
-    id: 1,
-    name: '张三',
-    student_id: '202301001',
-    phone: '138****1234',
-    department: '技术部',
-    position: '前端开发',
-    self_intro: '热爱编程，有Vue开发经验，希望加入技术部提升自己。',
-    score: 85,
-    selected: false
-  },
-  {
-    id: 2,
-    name: '李四',
-    student_id: '202301002',
-    phone: '139****5678',
-    department: '活动部',
-    position: '活动策划',
-    self_intro: '性格开朗，组织能力强，曾组织多次班级活动。',
-    score: 78,
-    selected: false
-  },
-  {
-    id: 3,
-    name: '王五',
-    student_id: '202301003',
-    phone: '137****9012',
-    department: '技术部',
-    position: '后端开发',
-    self_intro: '熟悉Python和Java，对后端架构有深入了解。',
-    score: 92,
-    selected: false
-  },
-  {
-    id: 4,
-    name: '赵六',
-    student_id: '202301004',
-    phone: '136****3456',
-    department: '宣传部',
-    position: '新媒体运营',
-    self_intro: '擅长文案写作和视频剪辑，运营过个人抖音账号。',
-    score: 88,
-    selected: false
-  },
-  {
-    id: 5,
-    name: '孙七',
-    student_id: '202301005',
-    phone: '135****7890',
-    department: '外联部',
-    position: '外联干事',
-    self_intro: '沟通能力强，有校外合作经验。',
-    score: 75,
-    selected: false
-  }
-])
+const userStore = useUserStore()
+
+// 招新场次列表
+const recruitmentSessions = ref<RecruitmentSession[]>([])
+const sessionsLoading = ref(false)
+
+// 待筛选学生
+const pendingCandidates = ref<(PendingCandidate & { selected: boolean })[]>([])
+const selectedCount = ref(0)
+const pendingLoading = ref(false)
+
+// 已安排面试学生
+const scheduledCandidates = ref<ScheduledCandidate[]>([])
+const scheduledLoading = ref(false)
 
 const sessionFilter = ref('all')
 const departmentFilter = ref('all')
-const selectedCount = ref(0)
 
-// 已筛选学生
-const filteredStudents = ref([
-  {
-    id: 6,
-    name: '周八',
-    student_id: '202301006',
-    department: '技术部',
-    position: '前端开发',
-    interviewers: ['李面试官', '王面试官'],
-    interview_date: '2026-01-07 14:00'
-  },
-  {
-    id: 7,
-    name: '吴九',
-    student_id: '202301007',
-    department: '活动部',
-    position: '活动策划',
-    interviewers: ['赵面试官'],
-    interview_date: '2026-01-07 15:30'
+// 加载招新场次列表
+const loadRecruitmentSessions = async () => {
+  sessionsLoading.value = true
+  try {
+    // 获取当前用户管理的社团的招新场次
+    const clubId = userStore.userInfo?.roles?.[0]?.club_id
+    const sessions = await getRecruitmentSessions({ club_id: clubId })
+    recruitmentSessions.value = sessions || []
+  } catch (error) {
+    console.error('加载招新场次失败:', error)
+  } finally {
+    sessionsLoading.value = false
   }
-])
+}
+
+// 加载面试筛选数据
+const loadInterviewFilter = async () => {
+  if (!sessionFilter.value || sessionFilter.value === 'all') {
+    pendingCandidates.value = []
+    scheduledCandidates.value = []
+    return
+  }
+
+  const sessionId = parseInt(sessionFilter.value)
+  const clubId = userStore.userInfo?.roles?.[0]?.club_id
+
+  pendingLoading.value = true
+  scheduledLoading.value = true
+
+  try {
+    const data = await getInterviewFilter({
+      recruitment_session_id: sessionId,
+      club_id: clubId
+    })
+
+    // 处理待筛选学生
+    pendingCandidates.value = (data.pending_candidates || []).map(item => ({
+      ...item,
+      selected: false
+    }))
+
+    // 处理已安排面试学生
+    scheduledCandidates.value = data.scheduled_candidates || []
+  } catch (error) {
+    console.error('加载面试筛选数据失败:', error)
+  } finally {
+    pendingLoading.value = false
+    scheduledLoading.value = false
+  }
+}
+
+// 监听招新场次选择变化
+watch(sessionFilter, (newVal) => {
+  if (newVal && newVal !== 'all') {
+    loadInterviewFilter()
+  } else {
+    pendingCandidates.value = []
+    scheduledCandidates.value = []
+  }
+})
 
 // 切换选择状态
-const toggleSelect = (student: any) => {
-  student.selected = !student.selected
-  selectedCount.value = students.value.filter(s => s.selected).length
+const toggleSelect = (candidate: PendingCandidate & { selected: boolean }) => {
+  candidate.selected = !candidate.selected
+  selectedCount.value = pendingCandidates.value.filter(s => s.selected).length
 }
 
 // 全选/取消全选
 const toggleSelectAll = () => {
-  const allSelected = students.value.every(s => s.selected)
-  students.value.forEach(s => s.selected = !allSelected)
-  selectedCount.value = allSelected ? 0 : students.value.length
+  const allSelected = pendingCandidates.value.every(s => s.selected)
+  pendingCandidates.value.forEach(s => s.selected = !allSelected)
+  selectedCount.value = allSelected ? 0 : pendingCandidates.value.length
 }
 
 // 批量分配面试官
 const assignInterviewers = () => {
+  console.log('批量分配面试官', pendingCandidates.value.filter(s => s.selected))
 }
 
 // 分配面试
-const assignInterview = (student: any) => {
+const assignInterview = (candidate: PendingCandidate) => {
+  console.log('分配面试', candidate)
 }
 
 // 取消面试
-const cancelInterview = (student: any) => {
+const cancelInterview = (candidate: ScheduledCandidate) => {
+  console.log('取消面试', candidate)
 }
+
+// 获取部门列表（从待筛选数据中提取）
+const departments = computed(() => {
+  const deptSet = new Set<string>()
+  pendingCandidates.value.forEach(c => {
+    if (c.department_name) deptSet.add(c.department_name)
+  })
+  scheduledCandidates.value.forEach(c => {
+    if (c.department_name) deptSet.add(c.department_name)
+  })
+  return Array.from(deptSet)
+})
+
+// 过滤后的待筛选学生
+const filteredPendingCandidates = computed(() => {
+  if (departmentFilter.value === 'all') return pendingCandidates.value
+  return pendingCandidates.value.filter(c => c.department_name === departmentFilter.value)
+})
+
+onMounted(() => {
+  loadRecruitmentSessions()
+})
 </script>
 
 <template>
@@ -141,24 +163,33 @@ const cancelInterview = (student: any) => {
         <!-- 筛选器 -->
         <div class="flex gap-3">
           <Select v-model="sessionFilter">
-            <SelectTrigger class="w-[200px]">
+            <SelectTrigger class="w-[250px]" :disabled="sessionsLoading">
               <SelectValue placeholder="选择招新场次" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">全部场次</SelectItem>
-              <SelectItem value="1">2026年春季招新</SelectItem>
+              <SelectItem
+                v-for="session in recruitmentSessions"
+                :key="session.id"
+                :value="String(session.id)"
+              >
+                {{ session.name }}
+              </SelectItem>
             </SelectContent>
           </Select>
-          <Select v-model="departmentFilter">
+          <Select v-model="departmentFilter" :disabled="!sessionFilter || sessionFilter === 'all'">
             <SelectTrigger class="w-[150px]">
               <SelectValue placeholder="选择部门" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">全部部门</SelectItem>
-              <SelectItem value="tech">技术部</SelectItem>
-              <SelectItem value="activity">活动部</SelectItem>
-              <SelectItem value="publicity">宣传部</SelectItem>
-              <SelectItem value="liaison">外联部</SelectItem>
+              <SelectItem
+                v-for="dept in departments"
+                :key="dept"
+                :value="dept"
+              >
+                {{ dept }}
+              </SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -171,7 +202,7 @@ const cancelInterview = (student: any) => {
             <div class="flex items-center justify-between">
               <div>
                 <p class="text-sm text-muted-foreground">待筛选</p>
-                <p class="text-2xl font-bold">{{ students.length }}</p>
+                <p class="text-2xl font-bold">{{ pendingCandidates.length }}</p>
               </div>
               <Users class="w-8 h-8 text-muted-foreground opacity-50" />
             </div>
@@ -182,7 +213,7 @@ const cancelInterview = (student: any) => {
             <div class="flex items-center justify-between">
               <div>
                 <p class="text-sm text-muted-foreground">已分配</p>
-                <p class="text-2xl font-bold text-green-600">{{ filteredStudents.length }}</p>
+                <p class="text-2xl font-bold text-green-600">{{ scheduledCandidates.length }}</p>
               </div>
               <CheckCircle class="w-8 h-8 text-green-600 opacity-50" />
             </div>
@@ -209,7 +240,7 @@ const cancelInterview = (student: any) => {
           <div class="flex items-center justify-between">
             <CardTitle>待筛选学生</CardTitle>
             <div class="flex items-center gap-2">
-              <Button variant="outline" size="sm" @click="toggleSelectAll">
+              <Button variant="outline" size="sm" @click="toggleSelectAll" :disabled="pendingCandidates.length === 0">
                 全选
               </Button>
               <Button
@@ -223,63 +254,60 @@ const cancelInterview = (student: any) => {
           </div>
         </CardHeader>
         <CardContent>
-          <Table>
+          <div v-if="pendingLoading" class="text-center py-8 text-muted-foreground">
+            加载中...
+          </div>
+          <Table v-else-if="filteredPendingCandidates.length > 0">
             <TableHeader>
               <TableRow>
                 <TableHead class="w-[50px]">
                   <Checkbox
-                    :checked="students.length > 0 && students.every(s => s.selected)"
+                    :checked="pendingCandidates.length > 0 && pendingCandidates.every(s => s.selected)"
                     @update:checked="toggleSelectAll"
                   />
                 </TableHead>
                 <TableHead>学生信息</TableHead>
                 <TableHead>面试岗位</TableHead>
                 <TableHead>自我介绍</TableHead>
-                <TableHead>评分</TableHead>
                 <TableHead>操作</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              <TableRow v-for="student in students" :key="student.id">
+              <TableRow v-for="candidate in filteredPendingCandidates" :key="candidate.signup_session_id">
                 <TableCell>
                   <Checkbox
-                    :checked="student.selected"
-                    @update:checked="toggleSelect(student)"
+                    :checked="candidate.selected"
+                    @update:checked="toggleSelect(candidate)"
                   />
                 </TableCell>
                 <TableCell>
                   <div class="flex flex-col">
-                    <span class="font-medium">{{ student.name }}</span>
-                    <span class="text-xs text-muted-foreground">{{ student.student_id }}</span>
-                    <span class="text-xs text-muted-foreground">{{ student.phone }}</span>
+                    <span class="font-medium">{{ candidate.user_name || '未知' }}</span>
+                    <span class="text-xs text-muted-foreground">{{ candidate.user_phone || '' }}</span>
                   </div>
                 </TableCell>
                 <TableCell>
                   <div class="flex flex-col">
-                    <span>{{ student.position }}</span>
-                    <Badge variant="outline" class="w-fit text-xs mt-1">{{ student.department }}</Badge>
+                    <span>{{ candidate.position_name || '未知岗位' }}</span>
+                    <Badge v-if="candidate.department_name" variant="outline" class="w-fit text-xs mt-1">{{ candidate.department_name }}</Badge>
                   </div>
                 </TableCell>
                 <TableCell>
                   <div class="max-w-[300px] truncate text-sm text-muted-foreground">
-                    {{ student.self_intro }}
+                    {{ candidate.self_intro || '无' }}
                   </div>
                 </TableCell>
                 <TableCell>
-                  <span class="font-bold" :class="{
-                    'text-green-600': student.score >= 85,
-                    'text-blue-600': student.score >= 75 && student.score < 85,
-                    'text-orange-600': student.score < 75
-                  }">{{ student.score }}</span>
-                </TableCell>
-                <TableCell>
-                  <Button variant="outline" size="sm" @click="assignInterview(student)">
+                  <Button variant="outline" size="sm" @click="assignInterview(candidate)">
                     分配面试
                   </Button>
                 </TableCell>
               </TableRow>
             </TableBody>
           </Table>
+          <div v-else class="text-center py-8 text-muted-foreground">
+            {{ sessionFilter === 'all' ? '请选择招新场次' : '暂无待筛选学生' }}
+          </div>
         </CardContent>
       </Card>
 
@@ -289,7 +317,10 @@ const cancelInterview = (student: any) => {
           <CardTitle>已分配面试</CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
+          <div v-if="scheduledLoading" class="text-center py-8 text-muted-foreground">
+            加载中...
+          </div>
+          <Table v-else-if="scheduledCandidates.length > 0">
             <TableHeader>
               <TableRow>
                 <TableHead>学生信息</TableHead>
@@ -300,37 +331,40 @@ const cancelInterview = (student: any) => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              <TableRow v-for="student in filteredStudents" :key="student.id">
+              <TableRow v-for="candidate in scheduledCandidates" :key="candidate.candidate_id">
                 <TableCell>
                   <div class="flex flex-col">
-                    <span class="font-medium">{{ student.name }}</span>
-                    <span class="text-xs text-muted-foreground">{{ student.student_id }}</span>
+                    <span class="font-medium">{{ candidate.user_name || '未知' }}</span>
+                    <span class="text-xs text-muted-foreground">{{ candidate.user_phone || '' }}</span>
                   </div>
                 </TableCell>
                 <TableCell>
                   <div class="flex flex-col">
-                    <span>{{ student.position }}</span>
-                    <Badge variant="outline" class="w-fit text-xs mt-1">{{ student.department }}</Badge>
+                    <span>{{ candidate.position_name || '未知岗位' }}</span>
+                    <Badge v-if="candidate.department_name" variant="outline" class="w-fit text-xs mt-1">{{ candidate.department_name }}</Badge>
                   </div>
                 </TableCell>
                 <TableCell>
                   <div class="flex flex-wrap gap-1">
-                    <Badge v-for="interviewer in student.interviewers" :key="interviewer" variant="outline" class="text-xs">
+                    <Badge v-for="interviewer in candidate.interviewers" :key="interviewer" variant="outline" class="text-xs">
                       {{ interviewer }}
                     </Badge>
                   </div>
                 </TableCell>
                 <TableCell class="text-sm text-muted-foreground">
-                  {{ student.interview_date }}
+                  {{ candidate.planned_start_time ? new Date(candidate.planned_start_time).toLocaleString() : '待安排' }}
                 </TableCell>
                 <TableCell>
-                  <Button variant="ghost" size="sm" @click="cancelInterview(student)">
+                  <Button variant="ghost" size="sm" @click="cancelInterview(candidate)">
                     取消
                   </Button>
                 </TableCell>
               </TableRow>
             </TableBody>
           </Table>
+          <div v-else class="text-center py-8 text-muted-foreground">
+            {{ sessionFilter === 'all' ? '请选择招新场次' : '暂无已分配面试学生' }}
+          </div>
         </CardContent>
       </Card>
     </div>

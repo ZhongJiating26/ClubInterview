@@ -15,24 +15,8 @@ from app.api.v1.system import router as system_router
 from app.db.session import engine
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
-from alembic.config import Config
-from alembic import command
 import logging
 
-
-def run_migrations():
-    """检查并运行数据库迁移"""
-    try:
-        # 测试数据库连接
-        with engine.connect() as conn:
-            conn.execute(text("SELECT 1"))
-        # 执行迁移
-        alembic_cfg = Config("alembic.ini")
-        command.upgrade(alembic_cfg, "head")
-        print("数据库迁移完成")
-    except Exception as e:
-        print(f"数据库迁移失败: {e}")
-        raise
 
 app = FastAPI(
     title=settings.app_name,
@@ -109,9 +93,5 @@ def health_check():
 
 @app.on_event("startup")
 def startup():
-    """启动时自动执行数据库迁移"""
-    # 建议生产环境注释掉自动迁移，改为手动执行 alembic upgrade head
-    # 避免因数据库连接延迟导致启动失败
+    """启动时的初始化操作"""
     pass
-    # if settings.app_env == "production":
-    #     run_migrations()

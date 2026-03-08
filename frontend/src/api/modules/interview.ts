@@ -392,3 +392,54 @@ export function getMyInterviewResult(candidateId: number) {
     notes?: string
   }>(`/api/student/interviews/${candidateId}/result`)
 }
+
+// ==================== 面试筛选 ====================
+
+// 待筛选学生
+export interface PendingCandidate {
+  signup_session_id: number
+  user_id: number
+  user_name?: string
+  user_phone?: string
+  department_id?: number
+  department_name?: string
+  position_id: number
+  position_name?: string
+  self_intro?: string
+  status: string
+  created_at?: string
+}
+
+// 已安排面试学生
+export interface ScheduledCandidate {
+  candidate_id: number
+  signup_session_id: number
+  user_id: number
+  user_name?: string
+  department_id?: number
+  department_name?: string
+  position_id: number
+  position_name?: string
+  session_id: number
+  session_name?: string
+  planned_start_time?: string
+  planned_end_time?: string
+  status: string
+  interviewers: string[]
+}
+
+// 面试筛选响应
+export interface InterviewFilterData {
+  pending_candidates: PendingCandidate[]
+  scheduled_candidates: ScheduledCandidate[]
+  total_pending: number
+  total_scheduled: number
+}
+
+// 获取面试筛选数据
+export function getInterviewFilter(params: {
+  recruitment_session_id: number
+  club_id?: number
+}) {
+  return get<InterviewFilterData>('/api/interview/filter', params)
+}

@@ -9,7 +9,6 @@ gunicorn>=20.1.0          # WSGI服务器（生产环境推荐）
 # ===== 数据库 =====
 sqlmodel>=0.0.14          # ORM（基于Pydantic + SQLAlchemy）
 pymysql>=1.1.0           # MySQL驱动
-alembic>=1.12.0          # 数据库迁移工具
 
 # ===== 认证与安全 =====
 passlib[bcrypt]>=1.7.4   # 密码哈希

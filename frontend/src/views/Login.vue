@@ -5,6 +5,7 @@ import { useUserStore } from '@/stores/user'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Eye, EyeOff } from 'lucide-vue-next'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -13,6 +14,7 @@ const phone = ref('')
 const password = ref('')
 const loading = ref(false)
 const error = ref('')
+const showPassword = ref(false)
 
 const handleLogin = async () => {
   error.value = ''
@@ -88,14 +90,24 @@ const goToForgetPassword = () => {
 
         <div class="grid gap-2">
           <Label for="password" class="text-lg">密码</Label>
-          <Input
-            id="password"
-            v-model="password"
-            type="password"
-            placeholder="请输入密码"
-            class="h-12 text-xl rounded-xl"
-            required
-          />
+          <div class="relative">
+            <Input
+              id="password"
+              v-model="password"
+              :type="showPassword ? 'text' : 'password'"
+              placeholder="请输入密码"
+              class="h-12 text-xl rounded-xl pr-10"
+              required
+            />
+            <button
+              type="button"
+              class="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              @click="showPassword = !showPassword"
+            >
+              <Eye v-if="showPassword" class="w-5 h-5" />
+              <EyeOff v-else class="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         <!-- 忘记密码 -->

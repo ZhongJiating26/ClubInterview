@@ -233,51 +233,51 @@ const viewDetail = (record: any) => {
         </div>
 
         <!-- 统计卡片 -->
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <Card>
-            <CardContent class="pt-6">
-              <div class="flex items-center justify-between">
-                <div>
-                  <p class="text-sm text-muted-foreground">总面试数</p>
-                  <p class="text-2xl font-bold">{{ stats.total }}</p>
-                </div>
-                <FileText class="w-8 h-8 text-muted-foreground opacity-50" />
+        <div class="flex gap-4 mb-6">
+          <div class="bg-gray-200 rounded-2xl p-6 w-64">
+            <div class="flex items-end justify-between">
+              <div class="flex items-end">
+                <p class="text-4xl font-bold">{{ stats.total }}</p>
+                <p class="text-sm text-muted-foreground mb-1 ml-1">总面试数</p>
               </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent class="pt-6">
-              <div class="flex items-center justify-between">
-                <div>
-                  <p class="text-sm text-muted-foreground">已评分</p>
-                  <p class="text-2xl font-bold text-green-600">{{ stats.scored }}</p>
-                </div>
-                <CheckCircle2 class="w-8 h-8 text-green-600 opacity-50" />
+              <div class="bg-white rounded-2xl p-3 border border-gray-400 border-0.5">
+                <FileText class="w-6 h-6 text-black" />
               </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent class="pt-6">
-              <div class="flex items-center justify-between">
-                <div>
-                  <p class="text-sm text-muted-foreground">待评分</p>
-                  <p class="text-2xl font-bold text-orange-600">{{ stats.pending }}</p>
-                </div>
-                <Clock class="w-8 h-8 text-orange-600 opacity-50" />
+            </div>
+          </div>
+          <div class="bg-gray-200 rounded-2xl p-6 w-64">
+            <div class="flex items-end justify-between">
+              <div class="flex items-end">
+                <p class="text-4xl font-bold text-green-500">{{ stats.scored }}</p>
+                <p class="text-sm text-muted-foreground mb-1 ml-1">已评分</p>
               </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent class="pt-6">
-              <div class="flex items-center justify-between">
-                <div>
-                  <p class="text-sm text-muted-foreground">平均分</p>
-                  <p class="text-2xl font-bold text-blue-600">{{ stats.avgScore }}</p>
-                </div>
-                <User class="w-8 h-8 text-blue-600 opacity-50" />
+              <div class="bg-white rounded-2xl p-3 border border-gray-400 border-0.5">
+                <CheckCircle2 class="w-6 h-6 text-black" />
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
+          <div class="bg-gray-200 rounded-2xl p-6 w-64">
+            <div class="flex items-end justify-between">
+              <div class="flex items-end">
+                <p class="text-4xl font-bold text-orange-500">{{ stats.pending }}</p>
+                <p class="text-sm text-muted-foreground mb-1 ml-1">待评分</p>
+              </div>
+              <div class="bg-white rounded-2xl p-3 border border-gray-400 border-0.5">
+                <Clock class="w-6 h-6 text-black" />
+              </div>
+            </div>
+          </div>
+          <div class="bg-gray-200 rounded-2xl p-6 w-64">
+            <div class="flex items-end justify-between">
+              <div class="flex items-end">
+                <p class="text-4xl font-bold text-blue-500">{{ stats.avgScore }}</p>
+                <p class="text-sm text-muted-foreground mb-1 ml-1">平均分</p>
+              </div>
+              <div class="bg-white rounded-2xl p-3 border border-gray-400 border-0.5">
+                <User class="w-6 h-6 text-black" />
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- 面试记录表格 -->
