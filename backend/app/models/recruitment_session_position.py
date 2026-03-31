@@ -28,11 +28,13 @@ class RecruitmentSessionPosition(BaseModel, table=True):
 
     position_description: Optional[str] = Field(
         default=None,
+        max_length=500,
         description="冗余岗位描述"
     )
 
     position_requirement: Optional[str] = Field(
         default=None,
+        max_length=500,
         description="冗余岗位要求"
     )
 

@@ -35,6 +35,7 @@ class Ticket(BaseModel, table=True):
 
     content: str = Field(
         nullable=False,
+        max_length=2000,
         description="工单内容"
     )
 
@@ -79,6 +80,7 @@ class TicketReply(BaseModel, table=True):
 
     content: str = Field(
         nullable=False,
+        max_length=2000,
         description="回复内容"
     )
 

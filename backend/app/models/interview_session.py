@@ -29,6 +29,7 @@ class InterviewSession(BaseModel, table=True):
 
     description: Optional[str] = Field(
         default=None,
+        max_length=500,
         description="描述"
     )
 

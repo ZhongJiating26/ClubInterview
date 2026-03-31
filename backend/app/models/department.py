@@ -23,5 +23,6 @@ class Department(BaseModel, table=True):
 
     description: Optional[str] = Field(
         default=None,
+        max_length=500,
         description="部门描述"
     )

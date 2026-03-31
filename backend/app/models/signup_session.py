@@ -25,11 +25,13 @@ class SignupSession(BaseModel, table=True):
 
     self_intro: Optional[str] = Field(
         default=None,
+        max_length=1000,
         description="自我介绍"
     )
 
     extra_fields_json: Optional[str] = Field(
         default=None,
+        max_length=2000,
         description="其他表单项（JSON格式）"
     )
 

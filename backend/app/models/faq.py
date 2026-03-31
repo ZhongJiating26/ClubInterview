@@ -29,6 +29,7 @@ class FAQ(BaseModel, table=True):
 
     answer: str = Field(
         nullable=False,
+        max_length=2000,
         description="答案"
     )
 

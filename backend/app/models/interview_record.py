@@ -44,11 +44,13 @@ class InterviewRecord(BaseModel, table=True):
 
     summary: Optional[str] = Field(
         default=None,
+        max_length=1000,
         description="总结"
     )
 
     record_text: Optional[str] = Field(
         default=None,
+        max_length=2000,
         description="手写记录"
     )
 
@@ -72,5 +74,6 @@ class InterviewRecord(BaseModel, table=True):
 
     transcript_text: Optional[str] = Field(
         default=None,
+        max_length=5000,
         description="转写内容"
     )

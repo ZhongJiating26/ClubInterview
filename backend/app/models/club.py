@@ -1,5 +1,5 @@
 from typing import Optional
-from sqlmodel import Field, Text
+from sqlmodel import Column, Field, Text
 
 from app.models.base import BaseModel
 
@@ -36,6 +36,7 @@ class Club(BaseModel, table=True):
 
     description: Optional[str] = Field(
         default=None,
+        sa_column=Column(Text),
         description="社团介绍"
     )
 

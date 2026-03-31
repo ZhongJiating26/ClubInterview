@@ -24,6 +24,7 @@ class RecruitmentSession(BaseModel, table=True):
 
     description: Optional[str] = Field(
         default=None,
+        max_length=2000,
         description="招新说明"
     )
 

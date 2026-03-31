@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -12,10 +13,20 @@ from app.api.v1.signup import router as signup_router
 from app.api.v1.interview import router as interview_router
 from app.api.v1.student import router as student_router
 from app.api.v1.system import router as system_router
-from app.db.session import engine
-from sqlalchemy import text
+from app.db.init_db import check_and_sync_db
 from sqlalchemy.exc import SQLAlchemyError
 import logging
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """启动时检查数据库，关闭时不做额外操作"""
+    try:
+        check_and_sync_db()
+    except Exception as e:
+        logger.error(f"数据库初始化失败: {e}", exc_info=True)
+        raise
+    yield
 
 
 app = FastAPI(
@@ -26,6 +37,7 @@ app = FastAPI(
     docs_url="/api/docs",
     redoc_url="/api/redoc",
     openapi_url="/api/openapi.json",
+    lifespan=lifespan,
 )
 
 # CORS 配置
@@ -89,9 +101,3 @@ def health_check():
         "status": "ok",
         "env": settings.app_env
     }
-
-
-@app.on_event("startup")
-def startup():
-    """启动时的初始化操作"""
-    pass

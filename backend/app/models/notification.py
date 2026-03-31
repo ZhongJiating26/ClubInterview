@@ -25,6 +25,7 @@ class Notification(BaseModel, table=True):
 
     content: str = Field(
         nullable=False,
+        max_length=2000,
         description="通知内容"
     )
 

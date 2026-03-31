@@ -13,7 +13,7 @@ DATABASE_URL = (
 # 创建数据库引擎
 engine = create_engine(
     DATABASE_URL,
-    echo=settings.debug,   # dev 环境打印 SQL
+    echo=False,
     pool_pre_ping=True,    # 自动检测断开的连接
 )
 
