@@ -111,11 +111,47 @@ def create_session(
         start_time=data.start_time,
         end_time=data.end_time,
         max_candidates=data.max_candidates,
-        status="DRAFT",
+        status=data.status,
     )
-    session.add(sess)
-    session.commit()
-    session.refresh(sess)
+
+    try:
+        session.add(sess)
+        session.flush()
+
+        seen_position_ids: set[int] = set()
+        for item in data.positions:
+            if item.position_id in seen_position_ids:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="同一个岗位不能重复添加",
+                )
+            seen_position_ids.add(item.position_id)
+
+            position = session.get(ClubPosition, item.position_id)
+            if not position or position.is_deleted:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="岗位不存在",
+                )
+
+            pos = RecruitmentSessionPosition(
+                session_id=sess.id,
+                position_id=item.position_id,
+                position_name=position.name,
+                position_description=position.description,
+                position_requirement=position.requirement,
+                recruit_quota=item.recruit_quota,
+            )
+            session.add(pos)
+
+        session.commit()
+        session.refresh(sess)
+    except HTTPException:
+        session.rollback()
+        raise
+    except Exception:
+        session.rollback()
+        raise
 
     return _load_positions(session, sess)
 

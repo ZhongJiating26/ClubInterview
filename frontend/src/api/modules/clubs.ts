@@ -173,6 +173,7 @@ export function createPosition(clubId: number, data: {
 
 // 更新岗位
 export function updatePosition(clubId: number, posId: number, data: {
+  department_id?: number | null
   name?: string
   description?: string
   requirement?: string

@@ -1,6 +1,12 @@
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional, List, Literal
 from pydantic import BaseModel, Field, model_serializer
+
+
+class RecruitmentSessionPositionCreate(BaseModel):
+    """关联岗位请求"""
+    position_id: int = Field(..., description="岗位ID")
+    recruit_quota: Optional[int] = Field(default=None, ge=1, description="招新人次")
 
 
 class RecruitmentSessionCreate(BaseModel):
@@ -10,6 +16,8 @@ class RecruitmentSessionCreate(BaseModel):
     start_time: datetime = Field(..., description="报名开始时间")
     end_time: datetime = Field(..., description="报名截止时间")
     max_candidates: Optional[int] = Field(default=None, ge=1, description="报名上限人数")
+    status: Literal["DRAFT", "PUBLISHED"] = Field(default="DRAFT", description="创建后的场次状态")
+    positions: List["RecruitmentSessionPositionCreate"] = Field(default_factory=list, description="场次关联岗位")
 
 
 class RecruitmentSessionUpdate(BaseModel):
@@ -20,12 +28,6 @@ class RecruitmentSessionUpdate(BaseModel):
     end_time: Optional[datetime] = Field(default=None, description="报名截止时间")
     max_candidates: Optional[int] = Field(default=None, ge=1, description="报名上限人数")
     status: Optional[str] = Field(default=None, description="状态：DRAFT / PUBLISHED / CLOSED")
-
-
-class RecruitmentSessionPositionCreate(BaseModel):
-    """关联岗位请求"""
-    position_id: int = Field(..., description="岗位ID")
-    recruit_quota: Optional[int] = Field(default=None, ge=1, description="招新人次")
 
 
 class RecruitmentSessionPositionUpdate(BaseModel):

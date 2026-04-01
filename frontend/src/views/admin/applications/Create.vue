@@ -53,8 +53,13 @@ const goToCreate = () => {
 }
 
 // 跳转到审核页面
-const goToReview = (sessionId: number) => {
-  router.push(`/admin/applications/review?session_id=${sessionId}`)
+const goToReview = (session: RecruitmentSession) => {
+  if (session.status === 'DRAFT') {
+    error.value = '草稿状态的招新场次不能进行审核，请先发布'
+    return
+  }
+
+  router.push(`/admin/applications/review?session_id=${session.id}`)
 }
 
 // 获取动态状态（基于时间和 status）
@@ -151,7 +156,12 @@ onMounted(() => {
               <ArrowRight class="w-3 h-3 mr-1" />
               管理
             </Button>
-            <Button variant="outline" size="sm" @click="goToReview(session.id)">
+            <Button
+              variant="outline"
+              size="sm"
+              :disabled="session.status === 'DRAFT'"
+              @click="goToReview(session)"
+            >
               审核
             </Button>
           </div>

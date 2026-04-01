@@ -152,7 +152,9 @@ const handleConfirm = async () => {
       name: formData.value.name,
       description: formData.value.description,
       requirement: formData.value.requirement,
-      department_id: formData.value.department_id && formData.value.department_id !== '-1' ? Number(formData.value.department_id) : undefined,
+      department_id: formData.value.department_id && formData.value.department_id !== '-1'
+        ? Number(formData.value.department_id)
+        : null,
     }
 
     if (dialogMode.value === 'create') {
@@ -290,15 +292,18 @@ onMounted(async () => {
             <Label for="pos-dept">所属部门</Label>
             <Select v-model="formData.department_id">
               <SelectTrigger>
-                <SelectValue placeholder="请选择部门（选填）" />
+                <SelectValue placeholder="请选择部门，可不关联，建议关联部门" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="-1">未分配部门</SelectItem>
+                <SelectItem value="-1">不关联部门（建议优先关联）</SelectItem>
                 <SelectItem v-for="dept in departments" :key="dept.id" :value="dept.id.toString()">
                   {{ dept.name }}
                 </SelectItem>
               </SelectContent>
             </Select>
+            <p class="text-xs text-muted-foreground">
+              可不关联部门，但建议关联部门，便于后续岗位归类和管理。
+            </p>
           </div>
 
           <div class="space-y-2">

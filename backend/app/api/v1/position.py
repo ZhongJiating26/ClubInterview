@@ -116,7 +116,7 @@ def update_position(
             )
 
     # 更新字段
-    if data.department_id is not None:
+    if "department_id" in data.model_fields_set:
         position.department_id = data.department_id
     if data.name is not None:
         position.name = data.name

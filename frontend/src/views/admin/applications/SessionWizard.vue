@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import {
@@ -7,12 +7,10 @@ import {
   getRecruitmentSession,
   updateRecruitmentSession,
   deleteRecruitmentSession,
-  getRecruitmentSessions,
   addSessionPosition,
   getSessionPositions,
   updateSessionPosition,
   removeSessionPosition,
-  type RecruitmentSession,
   type SessionPosition,
 } from '@/api/modules/recruitment'
 import { getPositions } from '@/api/modules/clubs'
@@ -26,7 +24,6 @@ import { Stepper } from '@/components/ui/stepper'
 import {
   ChevronLeft,
   ChevronRight,
-  Plus,
   Trash2,
   Building2,
   Calendar,
@@ -54,6 +51,7 @@ const currentStep = ref(0)
 const loading = ref(false)
 const error = ref('')
 const success = ref('')
+const sessionStatus = ref<'DRAFT' | 'PUBLISHED' | 'CLOSED'>('DRAFT')
 
 // 草稿相关
 const draftKey = computed(() => `recruitment_draft_${userStore.userInfo?.id}_${sessionId.value || 'new'}`)
@@ -187,6 +185,7 @@ const fetchSessionDetail = async () => {
       end_time: res.end_time ? formatDateTimeLocal(res.end_time) : '',
       max_candidates: res.max_candidates || 100,
     }
+    sessionStatus.value = res.status
     await fetchSessionPositions()
   } catch (err: any) {
     error.value = err.message || '获取场次详情失败'
@@ -315,6 +314,10 @@ const handleCreate = async (status: 'DRAFT' | 'PUBLISHED' = 'DRAFT') => {
     start_time: formatTime(formData.value.start_time),
     end_time: formatTime(formData.value.end_time),
     status,
+    positions: sessionPositions.value.map(pos => ({
+      position_id: pos.position_id,
+      recruit_quota: pos.recruit_quota,
+    })),
   }
 
   if (formData.value.description.trim()) {
@@ -328,16 +331,8 @@ const handleCreate = async (status: 'DRAFT' | 'PUBLISHED' = 'DRAFT') => {
     loading.value = true
     error.value = ''
 
-    // 创建场次
-    const session = await createRecruitmentSession(clubId, data)
-
-    // 添加岗位（如果有）
-    for (const pos of sessionPositions.value) {
-      await addSessionPosition(session.id, {
-        position_id: pos.position_id,
-        recruit_quota: pos.recruit_quota,
-      })
-    }
+    // 创建场次和岗位（后端事务处理）
+    await createRecruitmentSession(clubId, data)
 
     success.value = status === 'PUBLISHED' ? '发布成功' : '草稿已保存'
     clearDraft()
@@ -359,64 +354,85 @@ const handlePublishForNew = async () => {
   await handleCreate('PUBLISHED')
 }
 
-// 发布场次
+const buildUpdatePayload = (status?: 'DRAFT' | 'PUBLISHED' | 'CLOSED') => {
+  const formatTime = (time: string) => time ? time + ':00' : ''
+  const data: any = {
+    name: formData.value.name.trim(),
+    start_time: formatTime(formData.value.start_time),
+    end_time: formatTime(formData.value.end_time),
+  }
+
+  if (status) {
+    data.status = status
+  }
+  if (formData.value.description.trim()) {
+    data.description = formData.value.description.trim()
+  }
+  if (formData.value.max_candidates > 0) {
+    data.max_candidates = formData.value.max_candidates
+  }
+
+  return data
+}
+
+const validateSessionForm = () => {
+  if (!formData.value.name.trim()) {
+    error.value = '请输入招新名称'
+    return false
+  }
+  if (!formData.value.start_time) {
+    error.value = '请选择报名开始时间'
+    return false
+  }
+  if (!formData.value.end_time) {
+    error.value = '请选择报名截止时间'
+    return false
+  }
+
+  return true
+}
+
+// 保存编辑
+const handleSaveEdit = async () => {
+  if (!sessionId.value) return
+  error.value = ''
+
+  if (!validateSessionForm()) {
+    return
+  }
+
+  try {
+    loading.value = true
+    await updateRecruitmentSession(sessionId.value, buildUpdatePayload())
+    success.value = '修改已保存'
+    clearDraft()
+    router.push('/admin/applications/create')
+  } catch (err: any) {
+    error.value = err.response?.data?.detail || err.message || '保存失败'
+  } finally {
+    loading.value = false
+  }
+}
+
+// 发布已存在场次
 const handlePublish = async () => {
-  if (isEditing.value) {
-    // 编辑模式：更新字段并发布
-    const clubId = getClubId()
-    if (!clubId) {
-      error.value = '未找到社团信息'
-      return
-    }
+  if (!sessionId.value) return
+  error.value = ''
 
-    // 验证必填项
-    if (!formData.value.name.trim()) {
-      error.value = '请输入招新名称'
-      return
-    }
-    if (!formData.value.start_time) {
-      error.value = '请选择报名开始时间'
-      return
-    }
-    if (!formData.value.end_time) {
-      error.value = '请选择报名截止时间'
-      return
-    }
+  if (!validateSessionForm()) {
+    return
+  }
 
-    const formatTime = (time: string) => time ? time + ':00' : ''
-
-    const data: any = {
-      name: formData.value.name.trim(),
-      start_time: formatTime(formData.value.start_time),
-      end_time: formatTime(formData.value.end_time),
-      status: 'PUBLISHED',
-    }
-
-    if (formData.value.description.trim()) {
-      data.description = formData.value.description.trim()
-    }
-    if (formData.value.max_candidates > 0) {
-      data.max_candidates = formData.value.max_candidates
-    }
-
-    try {
-      loading.value = true
-      error.value = ''
-
-      // 更新所有字段
-      await updateRecruitmentSession(sessionId.value!, data)
-
-      success.value = '已发布'
-      clearDraft()
-      router.push('/admin/applications/create')
-    } catch (err: any) {
-      error.value = err.message || '发布失败'
-    } finally {
-      loading.value = false
-    }
-  } else {
-    // 新建模式：先创建再发布
-    await handleCreate()
+  try {
+    loading.value = true
+    await updateRecruitmentSession(sessionId.value, buildUpdatePayload('PUBLISHED'))
+    success.value = '已发布'
+    clearDraft()
+    router.push('/admin/applications/create')
+  } catch (err: any) {
+    error.value = err.response?.data?.detail || err.message || '发布失败'
+  } finally {
+    loading.value = false
   }
 }
 
@@ -567,6 +583,14 @@ onUnmounted(() => {
             <CardTitle>设置招新岗位</CardTitle>
           </CardHeader>
           <CardContent class="space-y-4">
+            <div
+              v-if="availablePositions.length === 0"
+              class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800"
+            >
+              当前社团还没有任何岗位，请先前往部门管理和岗位管理完成新建。
+              你可以先保存修改，稍后再回来补充岗位。
+            </div>
+
             <!-- 已选岗位列表 -->
             <div v-if="sessionPositions.length > 0" class="space-y-2">
               <Label>已选岗位</Label>
@@ -603,7 +627,7 @@ onUnmounted(() => {
             </div>
 
             <!-- 添加岗位 -->
-            <div class="space-y-2">
+            <div v-if="availablePositions.length > 0" class="space-y-2">
               <Label>添加岗位</Label>
               <div class="flex gap-2">
                 <Select @update:model-value="onAddPosition">
@@ -648,9 +672,17 @@ onUnmounted(() => {
             <Button variant="outline" @click="handleGoBack">
               取消
             </Button>
-            <Button @click="handlePublish" :disabled="loading">
+            <Button variant="outline" @click="handleSaveEdit" :disabled="loading">
               <Check class="w-4 h-4 mr-1" />
               {{ loading ? '保存中...' : '保存修改' }}
+            </Button>
+            <Button
+              v-if="sessionStatus !== 'PUBLISHED'"
+              @click="handlePublish"
+              :disabled="loading"
+            >
+              <Check class="w-4 h-4 mr-1" />
+              {{ loading ? '发布中...' : '发布场次' }}
             </Button>
           </div>
         </div>
@@ -738,6 +770,14 @@ onUnmounted(() => {
           <CardTitle>设置招新岗位</CardTitle>
         </CardHeader>
         <CardContent class="space-y-4">
+          <div
+            v-if="availablePositions.length === 0"
+            class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800"
+          >
+            当前社团还没有任何岗位，请先前往部门管理和岗位管理完成新建。
+            你可以先保存草稿，稍后再回来补充岗位。
+          </div>
+
           <!-- 已选岗位列表 -->
           <div v-if="sessionPositions.length > 0" class="space-y-2">
             <Label>已选岗位</Label>
@@ -775,7 +815,7 @@ onUnmounted(() => {
           </div>
 
           <!-- 添加岗位 -->
-          <div class="space-y-2">
+          <div v-if="availablePositions.length > 0" class="space-y-2">
             <Label>添加岗位</Label>
             <div class="flex gap-2">
               <Select @update:model-value="onAddPosition">

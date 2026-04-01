@@ -43,6 +43,8 @@ export interface CreateSessionData {
   start_time: string
   end_time: string
   max_candidates?: number
+  status?: 'DRAFT' | 'PUBLISHED'
+  positions?: AddSessionPositionData[]
 }
 
 // 创建招新场次（club_id 作为 query 参数）
