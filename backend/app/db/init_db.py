@@ -10,6 +10,7 @@ import sys
 from datetime import datetime
 
 from sqlalchemy import text
+from sqlalchemy.sql.sqltypes import Integer
 
 from app.db.session import engine
 from app.db.schools_data import SCHOOL_DATA
@@ -98,11 +99,23 @@ def _create_table_sql(table_name: str, model_cls: type) -> str:
     """生成 CREATE TABLE SQL 语句"""
     # 获取模型的所有列
     columns = []
+    unique_columns: set[str] = set()
+    index_columns: list[str] = []
+    primary_keys = [col.key for col in model_cls.__mapper__.primary_key]
+
     for col in model_cls.__mapper__.columns:
         col_def = f"`{col.key}` {col.type}"
         if not col.nullable:
             col_def += " NOT NULL"
-        if col.autoincrement is True:
+        # SQLModel 的整型单主键通常依赖数据库默认自增策略，这里显式补齐 MySQL 的 AUTO_INCREMENT
+        if (
+            col.autoincrement is True
+            or (
+                col.primary_key
+                and len(primary_keys) == 1
+                and isinstance(col.type, Integer)
+            )
+        ):
             col_def += " AUTO_INCREMENT"
         if col.default is not None and hasattr(col.default, 'arg'):
             default_val = col.default.arg
@@ -113,15 +126,20 @@ def _create_table_sql(table_name: str, model_cls: type) -> str:
                     col_def += f" DEFAULT '{default_val}'"
                 else:
                     col_def += f" DEFAULT {default_val}"
+        if col.unique:
+            unique_columns.add(col.key)
+        if col.index:
+            index_columns.append(col.key)
         columns.append(col_def)
-
-    # 获取主键
-    primary_keys = [col.key for col in model_cls.__mapper__.primary_key]
 
     sql = f"CREATE TABLE IF NOT EXISTS `{table_name}` (\n"
     sql += ",\n".join(f"  {col}" for col in columns)
     if primary_keys:
         sql += f",\n  PRIMARY KEY ({', '.join(f'`{pk}`' for pk in primary_keys)})"
+    for col_name in unique_columns:
+        sql += f",\n  UNIQUE (`{col_name}`)"
+    for col_name in index_columns:
+        sql += f",\n  INDEX (`{col_name}`)"
     sql += "\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci"
     return sql
 

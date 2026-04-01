@@ -1611,14 +1611,11 @@ def batch_assign_candidates(
                     ):
                         has_conflict = True
                         # 获取面试官信息
-                        from app.repositories.user_role import UserRoleRepository
                         from app.repositories.user_account import UserAccountRepository
-                        user_role_repo = UserRoleRepository()
                         user_repo = UserAccountRepository()
 
-                        user_role = user_role_repo.get(db_session, interviewer_id)
-                        if user_role:
-                            user = user_repo.get(db_session, user_role.user_id)
+                        user = user_repo.get(db_session, interviewer_id)
+                        if user:
                             conflicts.append({
                                 "candidate_id": candidate_id,
                                 "interviewer_id": interviewer_id,
@@ -1690,14 +1687,11 @@ def check_time_conflict(
                         session_obj.start_time, session_obj.end_time
                     ):
                         # 获取面试官信息
-                        from app.repositories.user_role import UserRoleRepository
                         from app.repositories.user_account import UserAccountRepository
-                        user_role_repo = UserRoleRepository()
                         user_repo = UserAccountRepository()
 
-                        user_role = user_role_repo.get(db_session, interviewer_id)
-                        if user_role:
-                            user = user_repo.get(db_session, user_role.user_id)
+                        user = user_repo.get(db_session, interviewer_id)
+                        if user:
                             conflicts.append(TimeConflictInfo(
                                 type="INTERVIEWER",
                                 name=user.name if user else "未知",
@@ -1791,6 +1785,12 @@ def send_interview_reminder(
 
     notification_repo = NotificationRepository()
 
+    if not candidate.planned_start_time or not candidate.planned_end_time:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="候选人尚未安排面试时间，无法发送提醒",
+        )
+
     notification = Notification(
         title="面试提醒",
         content=f"您有面试安排：\n"
@@ -1805,7 +1805,7 @@ def send_interview_reminder(
     notification_user = NotificationUser(
         notification_id=notification.id,
         user_id=candidate.candidate_user_id,
-        read_status=0,
+        read_status="UNREAD",
     )
     db_session.add(notification_user)
     db_session.commit()
