@@ -44,8 +44,13 @@ const handleLogin = async () => {
       router.push('/role-select')
     }
   } catch (err: any) {
-    // 提示更友好的错误信息
-    error.value = '手机号或密码错误'
+    const msg = err?.detail || err?.message || ''
+
+    if (msg.includes('账号尚未初始化') || msg.includes('用户已被禁用')) {
+      error.value = msg
+    } else {
+      error.value = '手机号或密码错误'
+    }
   } finally {
     loading.value = false
   }

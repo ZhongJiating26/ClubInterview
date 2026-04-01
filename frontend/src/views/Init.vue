@@ -316,8 +316,8 @@ const handleInit = async () => {
           :required="true"
         />
 
-        <!-- 社团名称（仅社团管理员） -->
-        <div v-if="role === 'admin'" class="grid gap-2">
+        <!-- 社团名称（社团管理员/系统管理员） -->
+        <div v-if="role === 'admin' || role === 'club_admin'" class="grid gap-2">
           <Label for="club_name">社团名称</Label>
           <Input
             id="club_name"
