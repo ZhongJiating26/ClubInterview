@@ -7,6 +7,7 @@ import {
   updateInterviewSession,
   deleteInterviewSession,
   getInterviewSession,
+  getSessionInterviewers,
   assignInterviewer,
   getAssignableInterviewers,
   getScoreTemplates,
@@ -35,6 +36,7 @@ import {
   Check,
   UserCheck,
   Trash2,
+  AlertCircle,
 } from 'lucide-vue-next'
 
 const route = useRoute()
@@ -57,6 +59,7 @@ const currentStep = ref(0)
 const loading = ref(false)
 const error = ref('')
 const success = ref('')
+const sessionStatus = ref<'DRAFT' | 'OPEN' | 'CLOSED'>('DRAFT')
 
 // 获取社团 ID
 const getClubId = () => {
@@ -66,6 +69,7 @@ const getClubId = () => {
 // 招新场次列表
 const recruitmentSessions = ref<any[]>([])
 const selectedRecruitmentSessionId = ref<number | null>(null)
+const hasRecruitmentSessions = computed(() => recruitmentSessions.value.length > 0)
 
 // 表单数据
 const formData = ref({
@@ -133,8 +137,13 @@ const fetchSessionDetail = async () => {
       end_time: res.end_time ? formatDateTimeLocal(res.end_time) : '',
       place: res.place || '',
     }
+    sessionStatus.value = res.status || 'DRAFT'
     selectedRecruitmentSessionId.value = res.recruitment_session_id || null
-    // TODO: 加载面试官和评分项
+
+    const sessionInterviewers = await getSessionInterviewers(sessionId.value)
+    selectedInterviewerIds.value = sessionInterviewers
+      .map(item => interviewers.value.find(interviewer => interviewer.user_id === item.user_id)?.id)
+      .filter((id): id is number => typeof id === 'number')
   } catch (err: any) {
     error.value = err.message || '获取场次详情失败'
   } finally {
@@ -176,6 +185,14 @@ const formatDate = (dateStr: string) => {
   return new Date(dateStr).toLocaleString('zh-CN')
 }
 
+// 打开原生日期时间选择器
+const openDateTimePicker = (event: Event) => {
+  const target = event.target as HTMLInputElement & { showPicker?: () => void }
+  if (typeof target.showPicker === 'function') {
+    target.showPicker()
+  }
+}
+
 // 添加评分项
 const addScoreItem = () => {
   if (!newScoreItem.value.title.trim()) {
@@ -200,32 +217,34 @@ const handleCreate = async (status: 'DRAFT' | 'OPEN' = 'OPEN') => {
     return
   }
 
-  // 验证必填项
-  if (!selectedRecruitmentSessionId.value) {
-    error.value = '请选择招新场次'
-    return
-  }
   if (!formData.value.name.trim()) {
     error.value = '请输入面试场次名称'
     return
   }
-  if (!formData.value.start_time) {
-    error.value = '请选择面试开始时间'
-    return
-  }
-  if (!formData.value.end_time) {
-    error.value = '请选择面试结束时间'
-    return
-  }
-  if (!formData.value.place.trim()) {
-    error.value = '请输入面试地点'
-    return
+
+  if (status === 'OPEN') {
+    if (!selectedRecruitmentSessionId.value) {
+      error.value = '请选择招新场次'
+      return
+    }
+    if (!formData.value.start_time) {
+      error.value = '请选择面试开始时间'
+      return
+    }
+    if (!formData.value.end_time) {
+      error.value = '请选择面试结束时间'
+      return
+    }
+    if (!formData.value.place.trim()) {
+      error.value = '请输入面试地点'
+      return
+    }
   }
 
   const formatTime = (time: string) => time ? time + ':00' : ''
 
   const data: CreateInterviewSessionData = {
-    recruitment_session_id: selectedRecruitmentSessionId.value,
+    recruitment_session_id: selectedRecruitmentSessionId.value ?? undefined,
     name: formData.value.name.trim(),
     start_time: formatTime(formData.value.start_time),
     end_time: formatTime(formData.value.end_time),
@@ -235,6 +254,19 @@ const handleCreate = async (status: 'DRAFT' | 'OPEN' = 'OPEN') => {
 
   if (formData.value.description.trim()) {
     data.description = formData.value.description.trim()
+  }
+
+  if (!data.start_time) {
+    delete data.start_time
+  }
+  if (!data.end_time) {
+    delete data.end_time
+  }
+  if (!data.place) {
+    delete data.place
+  }
+  if (!data.recruitment_session_id) {
+    delete data.recruitment_session_id
   }
 
   try {
@@ -262,7 +294,7 @@ const handleCreate = async (status: 'DRAFT' | 'OPEN' = 'OPEN') => {
 }
 
 // 更新面试场次
-const handleUpdate = async () => {
+const handleUpdate = async (status?: 'DRAFT' | 'OPEN') => {
   if (!sessionId.value) return
 
   const clubId = getClubId()
@@ -271,22 +303,30 @@ const handleUpdate = async () => {
     return
   }
 
-  // 验证必填项
+  const targetStatus = status || sessionStatus.value
+
   if (!formData.value.name.trim()) {
     error.value = '请输入面试场次名称'
     return
   }
-  if (!formData.value.start_time) {
-    error.value = '请选择面试开始时间'
-    return
-  }
-  if (!formData.value.end_time) {
-    error.value = '请选择面试结束时间'
-    return
-  }
-  if (!formData.value.place.trim()) {
-    error.value = '请输入面试地点'
-    return
+
+  if (targetStatus === 'OPEN') {
+    if (!selectedRecruitmentSessionId.value) {
+      error.value = '请先关联招新场次后再发布'
+      return
+    }
+    if (!formData.value.start_time) {
+      error.value = '请选择面试开始时间'
+      return
+    }
+    if (!formData.value.end_time) {
+      error.value = '请选择面试结束时间'
+      return
+    }
+    if (!formData.value.place.trim()) {
+      error.value = '请输入面试地点'
+      return
+    }
   }
 
   const formatTime = (time: string) => time ? time + ':00' : ''
@@ -296,10 +336,21 @@ const handleUpdate = async () => {
     start_time: formatTime(formData.value.start_time),
     end_time: formatTime(formData.value.end_time),
     place: formData.value.place.trim(),
+    status: targetStatus,
   }
 
   if (formData.value.description.trim()) {
     data.description = formData.value.description.trim()
+  }
+
+  if (!data.start_time) {
+    delete data.start_time
+  }
+  if (!data.end_time) {
+    delete data.end_time
+  }
+  if (!data.place) {
+    delete data.place
   }
 
   try {
@@ -307,7 +358,8 @@ const handleUpdate = async () => {
     error.value = ''
 
     await updateInterviewSession(sessionId.value, data)
-    success.value = '更新成功'
+    sessionStatus.value = targetStatus as 'DRAFT' | 'OPEN' | 'CLOSED'
+    success.value = targetStatus === 'OPEN' ? '发布成功' : '草稿已保存'
     setTimeout(() => {
       router.push('/admin/interviews/list')
     }, 1500)
@@ -321,7 +373,7 @@ const handleUpdate = async () => {
 // 保存草稿
 const handleSaveDraft = async () => {
   if (isEditing.value) {
-    await handleUpdate()
+    await handleUpdate('DRAFT')
   } else {
     await handleCreate('DRAFT')
   }
@@ -330,15 +382,23 @@ const handleSaveDraft = async () => {
 // 确认发布
 const handlePublish = async () => {
   if (isEditing.value) {
-    await handleUpdate()
+    await handleUpdate('OPEN')
   } else {
     await handleCreate('OPEN')
   }
 }
 
+const handleSaveEdit = async () => {
+  await handleUpdate()
+}
+
 // 返回
 const handleGoBack = () => {
   router.push('/admin/interviews/list')
+}
+
+const goToRecruitmentCreate = () => {
+  router.push('/admin/applications/create')
 }
 
 // 删除场次
@@ -401,6 +461,11 @@ onMounted(async () => {
             {{ isEditing ? '修改信息后点击保存' : '按步骤填写信息，创建面试场次' }}
           </p>
         </div>
+        <div v-if="!isEditing" class="ml-auto">
+          <Button variant="outline" @click="handleSaveDraft" :disabled="loading">
+            {{ loading ? '保存中...' : '保存草稿' }}
+          </Button>
+        </div>
       </div>
 
       <!-- 错误/成功提示 -->
@@ -417,7 +482,7 @@ onMounted(async () => {
     <div v-if="isEditing" class="flex-1 min-h-0 overflow-y-auto px-6 pb-6">
       <div class="space-y-6">
         <!-- 选择招新场次 -->
-        <Card>
+        <Card class="border-input shadow-xs bg-blue-50/30">
           <CardHeader>
             <CardTitle>选择招新场次</CardTitle>
           </CardHeader>
@@ -450,7 +515,7 @@ onMounted(async () => {
         </Card>
 
         <!-- 场次信息 -->
-        <Card>
+        <Card class="border-input shadow-xs bg-green-50/30">
           <CardHeader>
             <CardTitle>场次信息</CardTitle>
           </CardHeader>
@@ -481,6 +546,7 @@ onMounted(async () => {
                   id="start_time"
                   type="datetime-local"
                   v-model="formData.start_time"
+                  @click="openDateTimePicker"
                 />
               </div>
               <div class="space-y-2">
@@ -489,6 +555,7 @@ onMounted(async () => {
                   id="end_time"
                   type="datetime-local"
                   v-model="formData.end_time"
+                  @click="openDateTimePicker"
                 />
               </div>
             </div>
@@ -505,7 +572,7 @@ onMounted(async () => {
         </Card>
 
         <!-- 分配面试官 -->
-        <Card>
+        <Card class="border-input shadow-xs bg-purple-50/30">
           <CardHeader>
             <CardTitle>分配面试官</CardTitle>
           </CardHeader>
@@ -574,7 +641,7 @@ onMounted(async () => {
         </Card>
 
         <!-- 评分模板 -->
-        <Card>
+        <Card class="border-input shadow-xs bg-amber-50/30">
           <CardHeader>
             <CardTitle>评分模板</CardTitle>
           </CardHeader>
@@ -690,7 +757,27 @@ onMounted(async () => {
             <Button variant="outline" @click="handleGoBack">
               取消
             </Button>
-            <Button @click="handlePublish" :disabled="loading">
+            <Button
+              v-if="sessionStatus === 'DRAFT'"
+              variant="outline"
+              @click="handleSaveDraft"
+              :disabled="loading"
+            >
+              {{ loading ? '保存中...' : '保存草稿' }}
+            </Button>
+            <Button
+              v-if="sessionStatus === 'DRAFT'"
+              @click="handlePublish"
+              :disabled="loading"
+            >
+              <Check class="w-4 h-4 mr-1" />
+              {{ loading ? '发布中...' : '正式发布' }}
+            </Button>
+            <Button
+              v-else
+              @click="handleSaveEdit"
+              :disabled="loading"
+            >
               <Check class="w-4 h-4 mr-1" />
               {{ loading ? '保存中...' : '保存修改' }}
             </Button>
@@ -712,7 +799,22 @@ onMounted(async () => {
           <CardTitle>选择招新场次</CardTitle>
         </CardHeader>
         <CardContent class="space-y-4">
-          <div class="space-y-2">
+          <div v-if="!hasRecruitmentSessions" class="rounded-lg border border-amber-200 bg-amber-50 p-4">
+            <div class="flex items-start gap-3">
+              <AlertCircle class="mt-0.5 h-5 w-5 text-amber-600" />
+              <div class="flex-1">
+                <div class="font-medium text-amber-900">暂无可用招新场次</div>
+                <p class="mt-1 text-sm text-amber-800">
+                  新建面试场次前，需要先创建并发布招新场次。请先前往报名管理完成招新场次配置。
+                </p>
+                <Button class="mt-4" @click="goToRecruitmentCreate">
+                  去创建招新场次
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <div v-else class="space-y-2">
             <Label for="recruitmentSession">招新场次 *</Label>
             <Select v-model="selectedRecruitmentSessionId" @update:model-value="error = ''">
               <SelectTrigger>
@@ -789,6 +891,7 @@ onMounted(async () => {
                 id="start_time"
                 type="datetime-local"
                 v-model="formData.start_time"
+                @click="openDateTimePicker"
               />
             </div>
             <div class="space-y-2">
@@ -797,6 +900,7 @@ onMounted(async () => {
                 id="end_time"
                 type="datetime-local"
                 v-model="formData.end_time"
+                @click="openDateTimePicker"
               />
             </div>
           </div>
@@ -1022,11 +1126,10 @@ onMounted(async () => {
       </Card>
 
       <!-- Step 5: 确认发布 -->
-      <Card v-if="currentStep === 4">
+      <Card class="border-input shadow-xs bg-slate-50/30">
         <CardHeader>
           <CardTitle>确认发布</CardTitle>
-        </CardHeader>
-        <CardContent class="space-y-6">
+        </CardHeader>        <CardContent class="space-y-6">
           <div class="bg-muted rounded-lg p-4 space-y-4">
             <div class="flex items-center gap-2">
               <FileText class="w-4 h-4 text-muted-foreground" />

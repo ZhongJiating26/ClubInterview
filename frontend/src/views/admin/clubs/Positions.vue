@@ -232,7 +232,7 @@ onMounted(async () => {
 
     <!-- 岗位列表 -->
     <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-      <Card v-for="pos in positions" :key="pos.id" class="border-0 h-full flex flex-col">
+      <Card v-for="pos in positions" :key="pos.id" class="border-input shadow-xs h-full flex flex-col">
         <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle class="text-lg">{{ pos.name }}</CardTitle>
         </CardHeader>
@@ -259,7 +259,7 @@ onMounted(async () => {
 
       <!-- 空状态 -->
       <div v-if="positions.length === 0 && !loading" class="col-span-full">
-        <Card class="border-0">
+        <Card class="border-input shadow-xs">
           <CardContent class="flex flex-col items-center justify-center py-12">
             <p class="text-muted-foreground mb-4">暂无岗位，点击下方按钮创建</p>
             <Button @click="openCreateDialog">

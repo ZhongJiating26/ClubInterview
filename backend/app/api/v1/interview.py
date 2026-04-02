@@ -1,5 +1,5 @@
 from typing import Optional
-from datetime import timedelta
+from datetime import timedelta, datetime
 from fastapi import APIRouter, Depends, HTTPException, status, Request, UploadFile
 from sqlmodel import Session, select, and_
 
@@ -80,13 +80,6 @@ def create_session(
     db_session: Session = Depends(get_session),
 ):
     """创建面试场次"""
-    # 校验时间
-    if data.start_time >= data.end_time:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="开始时间必须早于结束时间",
-        )
-
     # 校验 status 值
     valid_statuses = ["DRAFT", "OPEN", "CLOSED"]
     if data.status and data.status not in valid_statuses:
@@ -95,15 +88,60 @@ def create_session(
             detail=f"状态值无效，必须是以下之一：{', '.join(valid_statuses)}",
         )
 
+    session_status = data.status or "DRAFT"
+
+    if session_status == "OPEN":
+        if data.recruitment_session_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="发布面试场次时必须关联招新场次",
+            )
+        if data.start_time is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="请选择面试开始时间",
+            )
+        if data.end_time is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="请选择面试结束时间",
+            )
+        if not data.place:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="请输入面试地点",
+            )
+    elif data.recruitment_session_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="当前数据库仍要求草稿先关联招新场次，请先选择招新场次后再保存草稿",
+        )
+
+    draft_start_time = data.start_time
+    draft_end_time = data.end_time
+    if session_status == "DRAFT" and (draft_start_time is None or draft_end_time is None):
+        now = datetime.utcnow().replace(second=0, microsecond=0)
+        draft_start_time = draft_start_time or now
+        draft_end_time = draft_end_time or (draft_start_time + timedelta(hours=1))
+
+    final_start_time = draft_start_time if session_status == "DRAFT" else data.start_time
+    final_end_time = draft_end_time if session_status == "DRAFT" else data.end_time
+
+    if final_start_time and final_end_time and final_start_time >= final_end_time:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="开始时间必须早于结束时间",
+        )
+
     session = InterviewSession(
         club_id=club_id,
         recruitment_session_id=data.recruitment_session_id,
         name=data.name,
         description=data.description,
         place=data.place,
-        start_time=data.start_time,
-        end_time=data.end_time,
-        status=data.status or "DRAFT",
+        start_time=final_start_time,
+        end_time=final_end_time,
+        status=session_status,
         created_by=current_user.id,
     )
     db_session.add(session)
@@ -139,20 +177,20 @@ def list_sessions(
     result = []
     for session in sessions:
         # 获取面试官数量
-        interviewer_count = db_session.execute(
+        interviewer_relations = db_session.execute(
             select(InterviewSessionInterviewer)
             .where(InterviewSessionInterviewer.session_id == session.id)
             .where(InterviewSessionInterviewer.is_deleted == 0)
         ).scalars().all()
-        interviewer_count = len(interviewer_count)
+        interviewer_count = len({item.interviewer_id for item in interviewer_relations})
 
         # 获取候选人数
-        candidate_count = db_session.execute(
+        candidates = db_session.execute(
             select(InterviewCandidate)
             .where(InterviewCandidate.session_id == session.id)
             .where(InterviewCandidate.is_deleted == 0)
         ).scalars().all()
-        candidate_count = len(candidate_count)
+        candidate_count = len({item.candidate_user_id for item in candidates})
 
         # 构建响应对象
         session_dict = {

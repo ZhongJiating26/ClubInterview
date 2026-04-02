@@ -16,8 +16,8 @@ class InterviewSession(BaseModel, table=True):
         description="社团ID"
     )
 
-    recruitment_session_id: int = Field(
-        nullable=False,
+    recruitment_session_id: Optional[int] = Field(
+        default=None,
         description="招新场次ID"
     )
 
@@ -39,13 +39,13 @@ class InterviewSession(BaseModel, table=True):
         description="面试地点"
     )
 
-    start_time: datetime = Field(
-        nullable=False,
+    start_time: Optional[datetime] = Field(
+        default=None,
         description="开始时间"
     )
 
-    end_time: datetime = Field(
-        nullable=False,
+    end_time: Optional[datetime] = Field(
+        default=None,
         description="结束时间"
     )
 

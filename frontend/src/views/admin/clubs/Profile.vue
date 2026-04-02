@@ -249,7 +249,7 @@ onMounted(() => {
 
     <!-- 查看模式 -->
     <div v-if="viewMode === 'view'">
-      <Card class="border-0">
+      <Card class="border-input shadow-xs">
         <CardHeader class="flex flex-row items-center gap-4">
           <img
             v-if="formData.logo_url"
@@ -294,7 +294,7 @@ onMounted(() => {
 
     <!-- 编辑模式 -->
     <form v-else @submit.prevent="handleConfirm">
-      <Card class="border-0">
+      <Card class="border-input shadow-xs">
         <CardHeader>
           <CardTitle>编辑社团资料</CardTitle>
         </CardHeader>

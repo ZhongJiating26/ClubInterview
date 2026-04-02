@@ -49,12 +49,12 @@ class SetScoreItemsRequest(BaseModel):
 
 class InterviewSessionCreate(BaseModel):
     """创建面试场次请求"""
-    recruitment_session_id: int = Field(..., description="招新场次ID")
+    recruitment_session_id: Optional[int] = Field(default=None, description="招新场次ID")
     name: str = Field(..., min_length=1, max_length=100, description="场次名称")
     description: Optional[str] = Field(default=None, description="描述")
     place: Optional[str] = Field(default=None, max_length=255, description="面试地点")
-    start_time: datetime = Field(..., description="开始时间")
-    end_time: datetime = Field(..., description="结束时间")
+    start_time: Optional[datetime] = Field(default=None, description="开始时间")
+    end_time: Optional[datetime] = Field(default=None, description="结束时间")
     status: Optional[str] = Field(default="DRAFT", description="状态：DRAFT / OPEN / CLOSED")
 
 
@@ -72,12 +72,12 @@ class InterviewSessionResponse(BaseModel):
     """面试场次响应"""
     id: int
     club_id: int
-    recruitment_session_id: int
+    recruitment_session_id: Optional[int] = None
     name: str
     description: Optional[str] = None
     place: Optional[str] = None
-    start_time: datetime
-    end_time: datetime
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
     status: str
     created_by: Optional[int] = None
     created_at: datetime
@@ -88,12 +88,12 @@ class InterviewSessionListResponse(BaseModel):
     """面试场次列表响应（包含统计字段）"""
     id: int
     club_id: int
-    recruitment_session_id: int
+    recruitment_session_id: Optional[int] = None
     name: str
     description: Optional[str] = None
     place: Optional[str] = None
-    start_time: datetime
-    end_time: datetime
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
     status: str
     created_by: Optional[int] = None
     created_at: datetime

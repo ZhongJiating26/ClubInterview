@@ -208,6 +208,14 @@ const formatDate = (dateStr: string) => {
   return new Date(dateStr).toLocaleString('zh-CN')
 }
 
+// 打开原生日期时间选择器
+const openDateTimePicker = (event: Event) => {
+  const target = event.target as HTMLInputElement & { showPicker?: () => void }
+  if (typeof target.showPicker === 'function') {
+    target.showPicker()
+  }
+}
+
 // 添加岗位
 const handleAddPosition = async (positionId: number, quota?: number) => {
   const finalQuota = quota ?? newPositionQuota.value
@@ -553,6 +561,7 @@ onUnmounted(() => {
                   id="start_time"
                   type="datetime-local"
                   v-model="formData.start_time"
+                  @click="openDateTimePicker"
                 />
               </div>
               <div class="space-y-2">
@@ -561,6 +570,7 @@ onUnmounted(() => {
                   id="end_time"
                   type="datetime-local"
                   v-model="formData.end_time"
+                  @click="openDateTimePicker"
                 />
               </div>
             </div>
@@ -731,6 +741,7 @@ onUnmounted(() => {
                 type="datetime-local"
                 v-model="formData.start_time"
                 @input="onFormChange"
+                @click="openDateTimePicker"
               />
             </div>
             <div class="space-y-2">
@@ -740,6 +751,7 @@ onUnmounted(() => {
                 type="datetime-local"
                 v-model="formData.end_time"
                 @input="onFormChange"
+                @click="openDateTimePicker"
               />
             </div>
           </div>
