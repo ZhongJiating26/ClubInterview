@@ -172,8 +172,8 @@ onMounted(() => {
         <Card
           v-for="session in sessions"
           :key="session.id"
-          class="border-0 hover:shadow-md transition-shadow cursor-pointer"
-          @click="goToEdit(session.id)"
+          class="hover:shadow-md transition-shadow cursor-pointer"
+          @click="viewDetails(session.id)"
         >
           <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle class="text-lg">{{ session.name }}</CardTitle>
@@ -224,7 +224,7 @@ onMounted(() => {
 
         <!-- 空状态 -->
         <div v-if="sessions.length === 0 && !loading" class="col-span-full">
-          <Card class="border-0">
+          <Card>
             <CardContent class="flex flex-col items-center justify-center py-12">
               <p class="text-muted-foreground mb-4">暂无面试场次，点击下方按钮创建</p>
               <Button @click="goToWizard">

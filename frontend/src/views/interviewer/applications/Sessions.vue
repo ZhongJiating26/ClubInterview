@@ -103,7 +103,7 @@ onMounted(() => {
         <Card
           v-for="session in sessions"
           :key="session.id"
-          class="border-0 hover:shadow-md transition-shadow"
+          class="hover:shadow-md transition-shadow"
         >
           <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle class="text-lg">{{ session.name }}</CardTitle>
@@ -137,7 +137,7 @@ onMounted(() => {
       </div>
 
       <!-- 空状态 -->
-      <Card v-else-if="!loading && !error" class="border-0">
+      <Card v-else-if="!loading && !error">
         <CardContent class="flex flex-col items-center justify-center py-12">
           <Calendar class="w-12 h-12 text-muted-foreground mb-4" />
           <p class="text-muted-foreground mb-2">暂无招新场次</p>
