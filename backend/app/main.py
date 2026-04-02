@@ -11,6 +11,7 @@ from app.api.v1.position import router as position_router
 from app.api.v1.recruitment_session import router as recruitment_router
 from app.api.v1.signup import router as signup_router
 from app.api.v1.interview import router as interview_router
+from app.api.v1.statistics import router as statistics_router
 from app.api.v1.student import router as student_router
 from app.api.v1.system import router as system_router
 from app.db.init_db import check_and_sync_db
@@ -92,6 +93,7 @@ app.include_router(position_router, prefix="/api")
 app.include_router(recruitment_router, prefix="/api")
 app.include_router(signup_router, prefix="/api")
 app.include_router(interview_router, prefix="/api")
+app.include_router(statistics_router, prefix="/api")
 app.include_router(student_router, prefix="/api")
 app.include_router(system_router, prefix="/api")
 
