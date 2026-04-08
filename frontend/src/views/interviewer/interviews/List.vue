@@ -18,7 +18,7 @@ const error = ref('')
 
 // 获取社团 ID
 const getClubId = () => {
-  return userStore.userInfo?.roles.find((r) => r.code === 'INTERVIEWER')?.club_id
+  return userStore.getClubIdByRoleCode('INTERVIEWER')
 }
 
 // 获取面试场次列表

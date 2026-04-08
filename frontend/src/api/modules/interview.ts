@@ -234,6 +234,11 @@ export function getSessionInterviewers(sessionId: number) {
   return get<Interviewer[]>(`/api/interview/sessions/${sessionId}/interviewers`)
 }
 
+// 从场次移除单个面试官
+export function removeSessionInterviewer(sessionId: number, userId: number) {
+  return del(`/api/interview/sessions/${sessionId}/interviewers/${userId}`)
+}
+
 // ==================== 候选人管理 ====================
 
 // 生成候选人排期

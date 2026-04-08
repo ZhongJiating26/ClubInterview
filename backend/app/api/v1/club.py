@@ -1,10 +1,17 @@
 from typing import Optional
+from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException, status, Request
-from sqlmodel import Session
+from sqlmodel import Session, select
 
+from app.api.deps import get_current_user
 from app.db.session import get_session
 from app.models.club import Club
+from app.models.interviewer_invitation import InterviewerInvitation
+from app.models.notification import Notification
+from app.models.notification_user import NotificationUser
+from app.models.role import Role
 from app.models.user_role import UserRole
+from app.models.user_account import UserAccount
 from app.models.recruitment_session_position import RecruitmentSessionPosition
 from app.repositories.club import ClubRepository
 from app.repositories.role import RoleRepository
@@ -38,6 +45,38 @@ dept_repo = DepartmentRepository()
 position_repo = ClubPositionRepository()
 session_repo = RecruitmentSessionRepository()
 session_position_repo = RecruitmentSessionPositionRepository()
+
+
+def _ensure_club_admin(
+    session: Session,
+    current_user: UserAccount,
+    club_id: int,
+) -> None:
+    club_admin_role = session.execute(
+        select(Role)
+        .where(Role.code == "CLUB_ADMIN")
+        .where(Role.is_deleted == 0)
+    ).scalar_one_or_none()
+
+    if not club_admin_role:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="系统角色配置错误",
+        )
+
+    relation = session.execute(
+        select(UserRole)
+        .where(UserRole.user_id == current_user.id)
+        .where(UserRole.role_id == club_admin_role.id)
+        .where(UserRole.club_id == club_id)
+        .where(UserRole.is_deleted == 0)
+    ).scalar_one_or_none()
+
+    if not relation:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="您没有权限执行该操作",
+        )
 
 
 @router.post("/check", response_model=CheckClubResponse)
@@ -727,6 +766,89 @@ def remove_member(
         user_role_repo.soft_delete(session, user_role)
 
     return RemoveMemberResponse(detail="成员已移除")
+
+
+@router.delete("/{club_id}/interviewers/{user_id}", response_model=RemoveMemberResponse)
+def remove_interviewer(
+    club_id: int,
+    user_id: int,
+    current_user: UserAccount = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    """
+    删除社团面试官角色
+
+    - 只移除 INTERVIEWER 角色
+    - 不影响该用户在同社团下的其他角色（如 CLUB_ADMIN）
+    """
+    user_repo = UserAccountRepository()
+    role_repo = RoleRepository()
+    user_role_repo = UserRoleRepository()
+
+    _ensure_club_admin(session, current_user, club_id)
+
+    club = club_repo.get(session, club_id)
+    if not club or club.is_deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="社团不存在",
+        )
+
+    user = user_repo.get(session, user_id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="用户不存在",
+        )
+
+    interviewer_role = role_repo.get_by_code(session, "INTERVIEWER")
+    if not interviewer_role:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="系统角色配置错误",
+        )
+
+    interviewer_relation = user_role_repo.get_by_user_role_club(
+        session,
+        user_id=user_id,
+        role_id=interviewer_role.id,
+        club_id=club_id,
+    )
+    if not interviewer_relation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="该用户不是本社团面试官",
+        )
+
+    removal_record = InterviewerInvitation(
+        club_id=club_id,
+        user_id=user_id,
+        invite_code=f"REMOVED-{uuid4().hex[:16].upper()}",
+        status="REMOVED",
+        inviter_id=current_user.id,
+    )
+    session.add(removal_record)
+    session.flush()
+
+    notification = Notification(
+        type="INTERVIEWER_REMOVED",
+        title=f"您已被移出 {club.name} 面试官",
+        content=f"社团“{club.name}”已移除您的面试官权限。",
+        biz_id=removal_record.id,
+        sent_at=removal_record.created_at,
+        status="SENT",
+    )
+    session.add(notification)
+    session.flush()
+    session.add(NotificationUser(
+        notification_id=notification.id,
+        user_id=user_id,
+        read_status="UNREAD",
+    ))
+
+    user_role_repo.soft_delete(session, interviewer_relation)
+
+    return RemoveMemberResponse(detail="面试官已移除")
 
 
 @router.get("/{club_id}/stats", response_model=ClubStatsResponse)

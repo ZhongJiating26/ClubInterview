@@ -1,4 +1,4 @@
-import { get, post } from '../request'
+import request, { get, post } from '../request'
 
 // 搜索用户结果
 export interface SearchedUser {
@@ -8,7 +8,7 @@ export interface SearchedUser {
 }
 
 // 邀请状态
-export type InvitationStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'EXPIRED'
+export type InvitationStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'EXPIRED' | 'REMOVED'
 
 // 面试官邀请
 export interface InterviewerInvitation {
@@ -29,16 +29,46 @@ export interface ClubInterviewer {
   name: string
   phone: string
   email?: string
+  role_name?: string
   joined_at: string
+}
+
+interface ClubMemberItem {
+  user_id: number
+  user_name: string
+  user_phone: string
+  user_email?: string
+  role_id: number
+  role_name: string
+  club_id: number
+  joined_at: string
+}
+
+interface ClubMembersResponse {
+  items: ClubMemberItem[]
+  total: number
 }
 
 // ==================== 管理员端 ====================
 
 // 获取社团的面试官列表
 export async function getClubInterviewers(clubId: number) {
-  const res = await get<any>(`/api/admin/clubs/${clubId}/interviewers`)
-  // 后端返回格式: {items: [...], total: 1}
-  return res.items as ClubInterviewer[]
+  const res = await get<ClubMembersResponse>(`/api/clubs/${clubId}/members`)
+
+  return res.items
+    .filter((member) => member.role_id === 3 || member.role_name === '面试官')
+    .map((member) => ({
+      id: member.user_id,
+      name: member.user_name,
+      phone: member.user_phone,
+      email: member.user_email,
+      role_name: member.role_name,
+      joined_at: member.joined_at,
+    }))
+}
+
+export function removeClubInterviewer(clubId: number, userId: number) {
+  return request.delete<{ detail: string }>(`/api/clubs/${clubId}/interviewers/${userId}`)
 }
 
 // 搜索用户

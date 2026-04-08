@@ -42,6 +42,7 @@ def _import_all_models() -> list[type]:
     from app.models.club_position import ClubPosition  # noqa: F401
     from app.models.department import Department  # noqa: F401
     from app.models.faq import FAQ  # noqa: F401
+    from app.models.interviewer_invitation import InterviewerInvitation  # noqa: F401
     from app.models.interview_candidate import InterviewCandidate  # noqa: F401
     from app.models.interview_record import InterviewRecord  # noqa: F401
     from app.models.interview_score import InterviewScore  # noqa: F401
@@ -70,6 +71,7 @@ def _import_all_models() -> list[type]:
         ClubPosition,
         Department,
         FAQ,
+        InterviewerInvitation,
         InterviewCandidate,
         InterviewRecord,
         InterviewScore,

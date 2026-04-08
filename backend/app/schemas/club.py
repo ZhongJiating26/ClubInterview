@@ -150,6 +150,7 @@ class ClubMemberItem(BaseModel):
     user_id: int
     user_name: str
     user_phone: str
+    user_email: Optional[str] = None
     role_id: int
     role_name: str
     club_id: int

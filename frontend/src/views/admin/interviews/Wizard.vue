@@ -9,6 +9,7 @@ import {
   getInterviewSession,
   getSessionInterviewers,
   assignInterviewer,
+  removeSessionInterviewer,
   getAssignableInterviewers,
   getScoreTemplates,
   type InterviewSession,
@@ -358,6 +359,28 @@ const handleUpdate = async (status?: 'DRAFT' | 'OPEN') => {
     error.value = ''
 
     await updateInterviewSession(sessionId.value, data)
+
+    const existingSessionInterviewers = await getSessionInterviewers(sessionId.value)
+    const existingUserIds = new Set(existingSessionInterviewers.map(item => item.user_id))
+    const selectedUserIds = new Set(
+      selectedInterviewerIds.value
+        .map(id => interviewers.value.find(interviewer => interviewer.id === id)?.user_id)
+        .filter((id): id is number => typeof id === 'number')
+    )
+
+    for (const interviewerId of selectedInterviewerIds.value) {
+      const matchedInterviewer = interviewers.value.find(interviewer => interviewer.id === interviewerId)
+      if (matchedInterviewer && !existingUserIds.has(matchedInterviewer.user_id)) {
+        await assignInterviewer(sessionId.value, { interviewer_id: interviewerId })
+      }
+    }
+
+    for (const existingInterviewer of existingSessionInterviewers) {
+      if (!selectedUserIds.has(existingInterviewer.user_id)) {
+        await removeSessionInterviewer(sessionId.value, existingInterviewer.user_id)
+      }
+    }
+
     sessionStatus.value = targetStatus as 'DRAFT' | 'OPEN' | 'CLOSED'
     success.value = targetStatus === 'OPEN' ? '发布成功' : '草稿已保存'
     setTimeout(() => {

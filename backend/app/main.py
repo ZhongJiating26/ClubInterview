@@ -6,6 +6,8 @@ from app.core.config import settings
 from app.api.v1.auth import router as auth_router
 from app.api.v1.school import router as school_router
 from app.api.v1.club import router as club_router
+from app.api.v1.admin_compat import router as admin_compat_router
+from app.api.v1.interviewer_invitation import router as interviewer_invitation_router
 from app.api.v1.department import router as department_router
 from app.api.v1.position import router as position_router
 from app.api.v1.recruitment_session import router as recruitment_router
@@ -87,7 +89,9 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 app.include_router(auth_router, prefix="/api")
 app.include_router(school_router, prefix="/api")
+app.include_router(admin_compat_router, prefix="/api")
 app.include_router(club_router, prefix="/api")
+app.include_router(interviewer_invitation_router, prefix="/api")
 app.include_router(department_router, prefix="/api")
 app.include_router(position_router, prefix="/api")
 app.include_router(recruitment_router, prefix="/api")

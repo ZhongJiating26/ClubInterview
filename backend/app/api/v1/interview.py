@@ -1226,6 +1226,37 @@ def get_session_interviewers(
     return result
 
 
+@router.delete("/sessions/{session_id}/interviewers/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+def remove_interviewer_from_session(
+    session_id: int,
+    user_id: int,
+    db_session: Session = Depends(get_session),
+):
+    """从场次移除面试官"""
+    session = session_repo.get(db_session, session_id)
+    if not session or session.is_deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="面试场次不存在",
+        )
+
+    relation = db_session.execute(
+        select(InterviewSessionInterviewer)
+        .where(InterviewSessionInterviewer.session_id == session_id)
+        .where(InterviewSessionInterviewer.interviewer_id == user_id)
+        .where(InterviewSessionInterviewer.is_deleted == 0)
+    ).scalar_one_or_none()
+
+    if not relation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="场次面试官记录不存在",
+        )
+
+    session_interviewer_repo.soft_delete(db_session, relation)
+    return None
+
+
 # ==================== 评分项管理 ====================
 
 @router.post("/sessions/{session_id}/score-items", response_model=InterviewSessionScoreItemResponse, status_code=status.HTTP_201_CREATED)

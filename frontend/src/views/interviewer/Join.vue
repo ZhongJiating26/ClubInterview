@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
+import { useUserStore } from '@/stores/user'
+import { getMe } from '@/api/modules/auth'
 import {
   getMyInvitations,
   acceptInvitation,
@@ -20,6 +22,8 @@ import {
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Building2, User, Check, X, Clock } from 'lucide-vue-next'
+
+const userStore = useUserStore()
 
 // 邀请列表
 const invitations = ref<InterviewerInvitation[]>([])
@@ -43,6 +47,7 @@ const statusText: Record<string, string> = {
   ACCEPTED: '已接受',
   REJECTED: '已拒绝',
   EXPIRED: '已过期',
+  REMOVED: '已被移除',
 }
 
 // 状态样式
@@ -54,6 +59,7 @@ const getStatusVariant = (status: string): 'default' | 'secondary' | 'destructiv
       return 'secondary'
     case 'REJECTED':
     case 'EXPIRED':
+    case 'REMOVED':
       return 'destructive'
     default:
       return 'outline'
@@ -118,6 +124,8 @@ const handleAccept = async () => {
   try {
     acceptLoading.value = true
     await acceptInvitation(selectedInvitation.value.id)
+    const userData = await getMe()
+    userStore.setUserInfo(userData)
     success.value = '已接受邀请，成为该社团面试官'
     showAcceptDialog.value = false
     await fetchInvitations()

@@ -5,6 +5,7 @@ import {
   searchUsers,
   inviteInterviewer,
   getClubInterviewers,
+  removeClubInterviewer,
   type SearchedUser,
   type ClubInterviewer,
 } from '@/api/modules/invitation'
@@ -29,7 +30,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Search, UserPlus, Phone, User, Check, Shield, Mail } from 'lucide-vue-next'
+import { Search, UserPlus, Phone, User, Check, Shield, Mail, Trash2 } from 'lucide-vue-next'
 
 const userStore = useUserStore()
 
@@ -49,10 +50,25 @@ const inviteSuccess = ref('')
 const interviewers = ref<ClubInterviewer[]>([])
 const interviewersLoading = ref(false)
 const interviewersError = ref('')
+const interviewerSuccess = ref('')
+
+// 删除面试官弹窗
+const showRemoveDialog = ref(false)
+const selectedInterviewer = ref<ClubInterviewer | null>(null)
+const removeLoading = ref(false)
 
 // 获取社团 ID
 const getClubId = () => {
   return userStore.userInfo?.roles.find((r) => r.code === 'CLUB_ADMIN')?.club_id
+}
+
+// 当前登录用户 ID
+const getCurrentUserId = () => {
+  return userStore.userInfo?.id
+}
+
+const isCurrentUser = (user: SearchedUser) => {
+  return user.id === getCurrentUserId()
 }
 
 // 获取面试官列表
@@ -90,9 +106,6 @@ const handleSearch = async () => {
     searchLoading.value = true
     searchError.value = ''
     searchedUsers.value = await searchUsers({ phone: searchPhone.value.trim() })
-    if (searchedUsers.value.length === 0) {
-      searchError.value = '未找到该手机号的用户'
-    }
   } catch (err: any) {
     searchError.value = err.message || '搜索失败'
   } finally {
@@ -102,9 +115,42 @@ const handleSearch = async () => {
 
 // 打开发送邀请弹窗
 const openInviteDialog = (user: SearchedUser) => {
+  if (isCurrentUser(user)) {
+    searchError.value = '这是本账号手机号，无法进行邀请'
+    return
+  }
   selectedUser.value = user
   inviteSuccess.value = ''
   showInviteDialog.value = true
+}
+
+const openRemoveDialog = (interviewer: ClubInterviewer) => {
+  selectedInterviewer.value = interviewer
+  showRemoveDialog.value = true
+}
+
+const handleRemoveInterviewer = async () => {
+  if (!selectedInterviewer.value) return
+
+  const clubId = getClubId()
+  if (!clubId) {
+    interviewersError.value = '未找到社团信息'
+    return
+  }
+
+  try {
+    removeLoading.value = true
+    interviewersError.value = ''
+    await removeClubInterviewer(clubId, selectedInterviewer.value.id)
+    interviewerSuccess.value = `已移除 ${selectedInterviewer.value.name} 的面试官权限`
+    showRemoveDialog.value = false
+    selectedInterviewer.value = null
+    await fetchInterviewers()
+  } catch (err: any) {
+    interviewersError.value = err.message || '移除面试官失败'
+  } finally {
+    removeLoading.value = false
+  }
 }
 
 // 发送邀请
@@ -183,6 +229,10 @@ onMounted(() => {
                 {{ interviewersError }}
               </div>
 
+              <div v-if="interviewerSuccess" class="mb-4 p-3 text-sm text-green-600 bg-green-50 rounded-md">
+                {{ interviewerSuccess }}
+              </div>
+
               <!-- 加载状态 -->
               <div v-if="interviewersLoading" class="text-center py-12">
                 <p class="text-muted-foreground">加载中...</p>
@@ -196,6 +246,7 @@ onMounted(() => {
                     <TableHead>手机号</TableHead>
                     <TableHead>邮箱</TableHead>
                     <TableHead>加入时间</TableHead>
+                    <TableHead class="text-right">操作</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -214,6 +265,16 @@ onMounted(() => {
                       </div>
                     </TableCell>
                     <TableCell>{{ formatDate(interviewer.joined_at) }}</TableCell>
+                    <TableCell class="text-right">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        @click="openRemoveDialog(interviewer)"
+                      >
+                        <Trash2 class="w-4 h-4 mr-1" />
+                        删除
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 </TableBody>
               </Table>
@@ -292,11 +353,15 @@ onMounted(() => {
                     <TableCell class="text-right">
                       <Button
                         size="sm"
+                        :disabled="isCurrentUser(user)"
                         @click="openInviteDialog(user)"
                       >
                         <UserPlus class="w-4 h-4 mr-1" />
-                        发送邀请
+                        {{ isCurrentUser(user) ? '无法邀请自己' : '发送邀请' }}
                       </Button>
+                      <p v-if="isCurrentUser(user)" class="mt-2 text-xs text-muted-foreground">
+                        这是本账号手机号，无法进行邀请
+                      </p>
                     </TableCell>
                   </TableRow>
                 </TableBody>
@@ -355,6 +420,44 @@ onMounted(() => {
         <Button variant="outline" @click="showInviteDialog = false">取消</Button>
         <Button @click="handleInvite" :disabled="inviteLoading">
           {{ inviteLoading ? '发送中...' : '确认发送' }}
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
+
+  <Dialog :open="showRemoveDialog" @update:open="showRemoveDialog = $event">
+    <DialogContent class="max-w-md">
+      <DialogHeader>
+        <DialogTitle>删除面试官</DialogTitle>
+        <DialogDescription>
+          确认移除「{{ selectedInterviewer?.name || selectedInterviewer?.phone }}」的面试官权限吗？
+        </DialogDescription>
+      </DialogHeader>
+
+      <div class="py-4">
+        <div class="bg-muted rounded-md p-4 space-y-2">
+          <div class="flex justify-between text-sm">
+            <span class="text-muted-foreground">姓名</span>
+            <span class="font-medium">{{ selectedInterviewer?.name || '未设置姓名' }}</span>
+          </div>
+          <div class="flex justify-between text-sm">
+            <span class="text-muted-foreground">手机号</span>
+            <span class="font-medium">{{ selectedInterviewer?.phone || '-' }}</span>
+          </div>
+          <div class="flex justify-between text-sm">
+            <span class="text-muted-foreground">邮箱</span>
+            <span class="font-medium">{{ selectedInterviewer?.email || '-' }}</span>
+          </div>
+        </div>
+        <p class="text-sm text-muted-foreground mt-4">
+          删除后，对方将不再拥有该社团的面试官权限。
+        </p>
+      </div>
+
+      <DialogFooter>
+        <Button variant="outline" @click="showRemoveDialog = false">取消</Button>
+        <Button variant="destructive" @click="handleRemoveInterviewer" :disabled="removeLoading">
+          {{ removeLoading ? '删除中...' : '确认删除' }}
         </Button>
       </DialogFooter>
     </DialogContent>

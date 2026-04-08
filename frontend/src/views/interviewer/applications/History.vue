@@ -64,7 +64,7 @@ const detailLoading = ref(false)
 
 // 获取社团 ID（面试官也有 club_id）
 const getClubId = () => {
-  return userStore.userInfo?.roles.find((r) => r.code === 'INTERVIEWER')?.club_id
+  return userStore.getClubIdByRoleCode('INTERVIEWER')
 }
 
 // 获取招新场次列表

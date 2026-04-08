@@ -8,6 +8,8 @@ export interface UserProfile extends UserInfo {
   primaryRole: UserRole | null
 }
 
+type RoleCode = string
+
 export const useUserStore = defineStore('user', () => {
   const token = ref<string>(localStorage.getItem('token') || '')
   const userInfo = ref<UserInfo | null>(null)
@@ -65,6 +67,19 @@ export const useUserStore = defineStore('user', () => {
     return userInfo.value.roles.some(r => roles.includes(r.code as UserRole))
   }
 
+  // 获取某个角色关联的社团 ID，优先返回带 club_id 的记录
+  function getClubIdByRoleCode(roleCode: RoleCode): number | null {
+    if (!userInfo.value?.roles.length) return null
+
+    const exactMatchWithClub = userInfo.value.roles.find(
+      (role) => role.code === roleCode && role.club_id !== null && role.club_id !== undefined
+    )
+    if (exactMatchWithClub) return exactMatchWithClub.club_id
+
+    const exactMatch = userInfo.value.roles.find((role) => role.code === roleCode)
+    return exactMatch?.club_id ?? null
+  }
+
   return {
     token,
     userInfo,
@@ -74,6 +89,7 @@ export const useUserStore = defineStore('user', () => {
     doLogin,
     logout,
     hasRole,
-    hasAnyRole
+    hasAnyRole,
+    getClubIdByRoleCode
   }
 })

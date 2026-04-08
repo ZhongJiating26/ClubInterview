@@ -220,6 +220,34 @@ def list_interviewer_signup_applications(
     return SignupApplicationListResponse(items=items, total=total)
 
 
+@router.get("/interviewer/signup/applications/{signup_id}", response_model=SignupApplicationResponse)
+def get_interviewer_signup_application(
+    signup_id: int,
+    club_id: int = Depends(get_interviewer_club_id),
+    session: Session = Depends(get_session),
+):
+    """
+    获取报名详情（面试官）
+
+    仅允许查看自己所属社团的报名记录
+    """
+    signup = signup_repo.get(session, signup_id)
+    if not signup or signup.is_deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="报名记录不存在",
+        )
+
+    recruitment = session.get(RecruitmentSession, signup.recruitment_session_id)
+    if not recruitment or recruitment.is_deleted or recruitment.club_id != club_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="报名记录不存在或不属于您的社团",
+        )
+
+    return _load_signup_with_user(session, signup)
+
+
 # ==================== 管理端接口 ====================
 
 @router.get("/admin/signup/applications", response_model=SignupApplicationListResponse)

@@ -115,6 +115,17 @@ def get_interviewer_club_id(
             detail="您不是任何社团的面试官",
         )
 
-    # 返回第一个关联的社团ID
-    # （一个用户可以是多个社团的面试官）
-    return user_roles[0].club_id
+    # 优先返回带 club_id 的面试官角色
+    # 兼容历史数据中存在 club_id 为空的“通用面试官”记录
+    valid_user_role = next(
+        (user_role for user_role in user_roles if user_role.club_id is not None),
+        None,
+    )
+
+    if not valid_user_role:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="您尚未加入任何社团，请先接受社团邀请",
+        )
+
+    return valid_user_role.club_id

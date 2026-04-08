@@ -319,6 +319,7 @@ class ClubRepository(BaseRepository[Club]):
                 "user_id": user.id,
                 "user_name": user.name,
                 "user_phone": user.phone,
+                "user_email": user.email,
                 "role_id": role.id,
                 "role_name": role.name,
                 "club_id": club_id,
