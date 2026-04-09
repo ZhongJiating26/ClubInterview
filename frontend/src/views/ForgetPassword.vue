@@ -229,6 +229,9 @@
                 {{ countdown > 0 ? `${countdown}s` : '重发' }}
               </Button>
             </div>
+            <p class="text-sm text-muted-foreground">
+              当前未接入真实验证码，任意输入 6 位数字即可。
+            </p>
           </div>
 
           <!-- 新密码 -->

@@ -9,7 +9,9 @@ from app.models.signup_item import SignupItem
 from app.models.signup_attachment import SignupAttachment
 from app.models.club_position import ClubPosition
 from app.models.recruitment_session import RecruitmentSession
+from app.models.role import Role
 from app.models.user_account import UserAccount
+from app.models.user_role import UserRole
 from app.repositories.recruitment_session import RecruitmentSessionRepository
 from app.repositories.signup_session import (
     SignupSessionRepository, SignupItemRepository, SignupAttachmentRepository,
@@ -33,6 +35,34 @@ signup_repo = SignupSessionRepository()
 item_repo = SignupItemRepository()
 attachment_repo = SignupAttachmentRepository()
 user_account_repo = UserAccountRepository()
+
+
+def _ensure_club_admin(session: Session, current_user: UserAccount, club_id: int) -> None:
+    club_admin_role = session.execute(
+        select(Role)
+        .where(Role.code == "CLUB_ADMIN")
+        .where(Role.is_deleted == 0)
+    ).scalar_one_or_none()
+
+    if not club_admin_role:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="系统角色配置错误",
+        )
+
+    relation = session.execute(
+        select(UserRole)
+        .where(UserRole.user_id == current_user.id)
+        .where(UserRole.role_id == club_admin_role.id)
+        .where(UserRole.club_id == club_id)
+        .where(UserRole.is_deleted == 0)
+    ).scalar_one_or_none()
+
+    if not relation:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="无权限操作",
+        )
 
 
 def _load_signup(session: Session, signup: SignupSession) -> SignupSessionResponse:
@@ -272,7 +302,7 @@ def list_signup_applications(
             detail="招新场次不存在",
         )
 
-    # TODO: 验证当前用户是否为该社团的管理员
+    _ensure_club_admin(session, current_user, recruitment.club_id)
 
     signups = signup_repo.get_by_session(session, recruitment_session_id, status)
     total = len(signups)

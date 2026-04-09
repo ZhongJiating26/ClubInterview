@@ -16,7 +16,11 @@ defineOptions({
   inheritAttrs: false,
 })
 
-const props = defineProps<DialogContentProps & { class?: HTMLAttributes["class"] }>()
+type AppDialogScrollContentProps = Omit<DialogContentProps, "disableOutsidePointerEvents"> & {
+  class?: HTMLAttributes["class"]
+}
+
+const props = defineProps<AppDialogScrollContentProps>()
 const emits = defineEmits<DialogContentEmits>()
 
 const delegatedProps = reactiveOmit(props, "class")

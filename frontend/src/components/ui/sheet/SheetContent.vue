@@ -12,7 +12,9 @@ import {
 import { cn } from "@/lib/utils"
 import SheetOverlay from "./SheetOverlay.vue"
 
-interface SheetContentProps extends DialogContentProps {
+type SheetContentBaseProps = Omit<DialogContentProps, "disableOutsidePointerEvents">
+
+interface SheetContentProps extends SheetContentBaseProps {
   class?: HTMLAttributes["class"]
   side?: "top" | "right" | "bottom" | "left"
 }

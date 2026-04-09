@@ -162,6 +162,9 @@ const goToLogin = () => {
             class="h-12 text-xl rounded-xl"
             required
           />
+          <p class="text-sm text-muted-foreground">
+            当前未接入真实验证码，任意输入 6 位数字即可。
+          </p>
         </div>
 
         <Button type="submit" class="w-full h-12 text-lg rounded-xl" :disabled="loading">

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -30,7 +30,7 @@ import {
   getSessionScoreItems,
   startInterview,
   updateInterviewRecord,
-  submitScore,
+  submitScore as submitInterviewScore,
   uploadInterviewRecording,
   type InterviewCandidate,
   type ScoreItem
@@ -81,9 +81,6 @@ const interviewNotes = ref('')
 // 提交状态
 const isSubmitting = ref(false)
 const showSubmitDialog = ref(false)
-
-// 上传对话框
-const showUploadDialog = ref(false)
 
 // 计算总分
 const totalScore = computed(() => {
@@ -205,11 +202,15 @@ const handleUploadRecording = async () => {
 
 // 打开提交确认对话框
 const openSubmitDialog = () => {
+  if (!validateScores()) {
+    alert('请检查评分，分数必须在有效范围内')
+    return
+  }
   showSubmitDialog.value = true
 }
 
 // 提交评分
-const submitScore = async () => {
+const handleSubmitScore = async () => {
   if (!interviewRecordId.value) {
     alert('请先开始面试')
     return
@@ -233,7 +234,7 @@ const submitScore = async () => {
       notes: interviewNotes.value
     }
 
-    await submitScore(interviewRecordId.value, scoreData)
+    await submitInterviewScore(interviewRecordId.value, scoreData)
 
     showSubmitDialog.value = false
     alert('评分提交成功')
@@ -280,8 +281,9 @@ const formatDate = () => {
 
 // 验证评分
 const validateScores = () => {
-  for (const item of scores.value) {
-    if (item.score < 0 || item.score > item.maxScore) {
+  for (const item of scoreItems.value) {
+    const score = scores.value[item.id] ?? 0
+    if (score < 0 || score > item.max_score) {
       return false
     }
   }
@@ -300,12 +302,11 @@ onMounted(() => {
   if (candidateId.value) {
     fetchCandidateDetail()
   }
+})
 
-  // 页面卸载时清除定时器
-  return () => {
-    if (timer) {
-      clearInterval(timer)
-    }
+onUnmounted(() => {
+  if (timer) {
+    clearInterval(timer)
   }
 })
 </script>
@@ -406,8 +407,8 @@ onMounted(() => {
                 </CardContent>
               </Card>
 
-            <!-- 录音/上传区域 -->
-            <Card class="bg-white">
+              <!-- 录音/上传区域 -->
+              <Card class="bg-white">
               <CardHeader>
                 <CardTitle class="text-lg flex items-center gap-2">
                   <FileAudio class="w-5 h-5 text-blue-600" />
@@ -566,18 +567,18 @@ onMounted(() => {
                 <div v-for="item in scoreItems" :key="item.id" class="space-y-2">
                   <div class="flex items-center justify-between">
                     <Label class="text-sm font-medium text-gray-700">{{ item.title }}</Label>
-                    <span class="text-sm text-gray-500">满分 {{ item.maxScore }}</span>
+                    <span class="text-sm text-gray-500">满分 {{ item.max_score }}</span>
                   </div>
                   <div class="flex items-center gap-2">
                     <Input
                       v-model.number="scores[item.id]"
                       type="number"
                       :min="0"
-                      :max="item.maxScore"
+                      :max="item.max_score"
                       class="flex-1"
                       placeholder="0"
                     />
-                    <span class="text-sm text-gray-500">/ {{ item.maxScore }}</span>
+                    <span class="text-sm text-gray-500">/ {{ item.max_score }}</span>
                   </div>
                   <p v-if="item.description" class="text-xs text-gray-500">{{ item.description }}</p>
                 </div>
@@ -606,6 +607,7 @@ onMounted(() => {
         </div>
       </div>
     </div>
+  </div>
 
     <!-- 提交确认对话框 -->
     <Dialog :open="showSubmitDialog" @update:open="showSubmitDialog = $event">
@@ -627,15 +629,15 @@ onMounted(() => {
             </div>
           </div>
 
-          <div class="border-t border-gray-200 pt-4">
-            <p class="text-sm font-medium text-gray-700 mb-2">评分详情：</p>
-            <div class="space-y-1 text-sm">
-              <div v-for="item in scoreItems" :key="item.id" class="flex justify-between">
-                <span class="text-gray-600">{{ item.title }}</span>
-                <span class="font-medium">{{ scores[item.id] || 0 }} / {{ item.maxScore }}</span>
+            <div class="border-t border-gray-200 pt-4">
+              <p class="text-sm font-medium text-gray-700 mb-2">评分详情：</p>
+              <div class="space-y-1 text-sm">
+                <div v-for="item in scoreItems" :key="item.id" class="flex justify-between">
+                  <span class="text-gray-600">{{ item.title }}</span>
+                  <span class="font-medium">{{ scores[item.id] || 0 }} / {{ item.max_score }}</span>
+                </div>
               </div>
             </div>
-          </div>
 
           <div v-if="interviewNotes" class="border-t border-gray-200 pt-4">
             <p class="text-sm font-medium text-gray-700 mb-1">面试记录：</p>
@@ -647,3 +649,17 @@ onMounted(() => {
             <p class="text-sm text-blue-800">提交后评分将锁定，如需修改请联系管理员</p>
           </div>
         </div>
+ 
+        <DialogFooter>
+          <Button variant="outline" @click="showSubmitDialog = false" :disabled="isSubmitting">
+            取消
+          </Button>
+          <Button class="bg-blue-600 hover:bg-blue-700" @click="handleSubmitScore" :disabled="isSubmitting">
+            <Loader2 v-if="isSubmitting" class="w-4 h-4 mr-2 animate-spin" />
+            {{ isSubmitting ? '提交中...' : '确认提交' }}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  </div>
+</template>
